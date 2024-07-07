@@ -24,35 +24,41 @@ module decoder(
     assign funct7 = i_instr[31:25];
 
     task r_type(input [31:0] instr);
+        o_dec.valid = 1;
         o_dec.rs2 = instr[24:20];
         o_dec.rs1 = instr[19:15];
         o_dec.rd = instr[11:7];
     endtask 
     
     task i_type(input [31:0] instr);
+        o_dec.valid = 1;
         o_dec.imm = {{20{instr[31]}}, instr[31:20]};
         o_dec.rs1 = instr[19:15];
         o_dec.rd = instr[11:7];
     endtask
     
     task s_type(input [31:0] instr);
+        o_dec.valid = 1;
         o_dec.imm = {{20{instr[31]}}, instr[31:25], instr[11:7]};
         o_dec.rs2 = instr[24:20];
         o_dec.rs1 = instr[19:15];
     endtask
     
     task b_type(input [31:0] instr);
+        o_dec.valid = 1;
         o_dec.imm = {{19{instr[31]}}, instr[31], instr[7], instr[30:25], instr[11:8], 1'b0};
         o_dec.rs2 = instr[24:20];
         o_dec.rs1 = instr[19:15];
     endtask
     
     task u_type(input [31:0] instr);
+        o_dec.valid = 1;
         o_dec.imm = {instr[31:12], {20{1'b0}}};
         o_dec.rd = instr[11:7];
     endtask
     
     task j_type(input [31:0] instr);
+        o_dec.valid = 1;
         o_dec.rd = instr[11:7];
         o_dec.imm = {{11{instr[31]}}, instr[31], instr[19:12], instr[20], instr[30:21], 1'b0};
     endtask
@@ -204,9 +210,13 @@ module decoder(
     always_comb begin
         //default values for a NOP i guess
         o_dec.uses_rd = 0;
+        o_dec.rd = 0;
         o_dec.uses_rs1 = 0;
+        o_dec.rs1 = 0;
         o_dec.uses_rs2 = 0;
+        o_dec.rs2 = 0;
         o_dec.uses_imm = 0;
+        o_dec.imm = 0;
         o_dec.alu_operation = ALUCTL_ADD;
         o_dec.is_fp = 0;
         o_dec.target = 0;
@@ -229,6 +239,7 @@ module decoder(
         o_dec.amo_type = AMO_LR;
         o_branch_inconsistency = ~guesses_branch;
         o_new_pc = i_pc + 'd4;
+        o_dec.valid = 0;
         case(opcode)
             7'b0010011: begin //op imm
                 i_type(.instr(i_instr));

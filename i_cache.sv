@@ -168,50 +168,54 @@ module i_cache #(
     end
     
     
+    
+     
+    always_ff @(posedge clk) begin
+        if(compare_tags_s2[0] && fetch_forwarding_valid && (forward_tag == s2_tags[0]) && (s2_idxs[0] == forward_idx)) begin
+            miss[0] <= 0;
+            read_instr[0] <= forward_line_broken[getOffSet(fetch_forwarding_addr)];
+        end else if(compare_tags_s2[0] && (access_data[0][TOTAL_LINE_SIZE-1] && (data_tags[0] == s2_tags[0])) && (s2_idxs[0] == getIdx(already_read_addr[0]))) begin
+            miss[0] <= 0;
+            read_instr[0] <= line1[getOffSet(already_read_addr[0])];
+        end else if (~compare_tags_s2[0]) begin
+            miss[0] <= 0;
+            read_instr[0] <= 0;
+        end else begin
+            miss[0] <= 1;
+            read_instr[0] <= 0;
+        end
+        
+        if(compare_tags_s2[1] && fetch_forwarding_valid && (forward_tag == s2_tags[1]) && (s2_idxs[1] == forward_idx)) begin
+            miss[1] <= 0;
+            read_instr[1] <= forward_line_broken[getOffSet(fetch_forwarding_addr)];
+        end else if(compare_tags_s2[1] && (access_data[1][TOTAL_LINE_SIZE-1] && (data_tags[1] == s2_tags[1])) && (s2_idxs[1] == getIdx(already_read_addr[1]))) begin
+            miss[1] <= 0;
+            read_instr[1] <= line2[getOffSet(already_read_addr[1])];
+        end else if(~compare_tags_s2[1]) begin
+            miss[1] <= 0;
+            read_instr[1] <= 0;
+        end else begin
+            miss[1] <= 1;
+            read_instr[1] <= 0;
+        end
+    end
+    
     always_comb begin
         forward_tag = getTag(fetch_forwarding_addr);
         forward_idx = getIdx(fetch_forwarding_addr);
         
-        miss[0] = 0;
         valid_read[0] = compare_tags_s2[0] && ~ext_flush;
     
-        //check for cache miss
         s2_tags[0] = getTag(already_read_addr[0]);
         s2_idxs[0] = getIdx(already_read_addr[0]);
         data_tags[0] = access_data[0][TOTAL_LINE_SIZE-2:TOTAL_LINE_SIZE-1-TAG_SIZE];
-        if(compare_tags_s2[0] && fetch_forwarding_valid && (forward_tag == s2_tags[0]) && (s2_idxs[0] == forward_idx)) begin
-            miss[0] = 0;
-            read_instr[0] = forward_line_broken[getOffSet(fetch_forwarding_addr)];
-        end else if(compare_tags_s2[0] && (access_data[0][TOTAL_LINE_SIZE-1] && (data_tags[0] == s2_tags[0])) && (s2_idxs[0] == getIdx(already_read_addr[0]))) begin
-            miss[0] = 0;
-            read_instr[0] = line1[getOffSet(already_read_addr[0])];
-        end else if (~compare_tags_s2[0]) begin
-            miss[0] = 0;
-            read_instr[0] = 0;
-        end else begin
-            miss[0] = 1;
-            read_instr[0] = 0;
-        end
         
-        miss[1] = 0;
+        
         valid_read[1] = compare_tags_s2[1] && ~ext_flush;
-        //check for cache miss
         s2_tags[1] = getTag(already_read_addr[1]);
         s2_idxs[1] = getIdx(already_read_addr[1]);
         data_tags[1] = access_data[1][TOTAL_LINE_SIZE-2:TOTAL_LINE_SIZE-1-TAG_SIZE];
-        if(compare_tags_s2[1] && fetch_forwarding_valid && (forward_tag == s2_tags[1]) && (s2_idxs[1] == forward_idx)) begin
-            miss[1] = 0;
-            read_instr[1] = forward_line_broken[getOffSet(fetch_forwarding_addr)];
-        end else if(compare_tags_s2[1] && (access_data[1][TOTAL_LINE_SIZE-1] && (data_tags[1] == s2_tags[1])) && (s2_idxs[1] == getIdx(already_read_addr[1]))) begin
-            miss[1] = 0;
-            read_instr[1] = line2[getOffSet(already_read_addr[1])];
-        end else if(~compare_tags_s2[1]) begin
-            miss[1] = 0;
-            read_instr[1] = 0;
-        end else begin
-            miss[1] = 1;
-            read_instr[1] = 0;
-        end
+        
         
     end
     

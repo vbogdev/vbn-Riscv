@@ -19,16 +19,14 @@ module fetch_stage(
     logic predictor_stall;
     logic cache_stall;
     logic guesses_branch [2];
-    logic guesses_taken [2];
     assign predictor_stall = cache_stall || ext_stall || miss[0] || miss[1];
-    next_pc_predictor PREDICTOR(
+    temp_next_pc_predictor PREDICTOR(
         .clk, .reset, 
         .ext_stall(predictor_stall), 
         .ext_flush,
         .i_branch(branch_fb),
         .i_dec(decode_fb),
         .guess(predicted_pc),
-        .guesses_taken(guesses_taken),
         .guess_valid(predicted_pc_valid),
         .guesses_branch
     );

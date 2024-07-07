@@ -46,8 +46,27 @@ module gshare #(
         end
     end
     
+    always_ff @(posedge clk) begin
+        if(reset) begin
+            history <= 0;
+        end else begin
+            if(i_fb[0].if_branch) begin
+                if(i_fb[1].if_branch) begin
+                    history <= {(history << 2), (i_fb[0].outcome == TAKEN), (i_fb[1].outcome == TAKEN)};
+                end else begin
+                    history <= {(history << 1), (i_fb[0].outcome == TAKEN)};
+                end
+            end else if(i_fb[1].if_branch) begin
+                history <= {(history << 1), (i_fb[1].outcome == TAKEN)};
+            end
+        end
+    end
     
     always_comb begin
+        we[0] = 0;
+        we[1] = 0;
+        din[0] = 0;
+        din[1] = 0;
         if(i_fb[0].if_branch) begin
             we[0] = 1;
             din[0] = (i_fb[0].outcome == TAKEN) ? 1 : 0;

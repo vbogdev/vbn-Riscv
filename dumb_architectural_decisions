@@ -1,0 +1,10 @@
+branch_fb[0] TAKES PRECEDENCE OVER branch_fb[1] --> means it is older in the active list
+JALR will be treated as a usually incorrect branch --> NO DECODE FEEDBACK 
+JALR will stored the value that will be stored in rd in the decode_ifc.target, as imm is taken --> In ex stage, a mux will be needed
+currently no prediction in decode stage --> add second more accurate predictor here?
+only 2 instructions can be completed per cycle --> 5 or so execution units will need to share a 2-wide bus
+if there is a recall, all checkpointing behavior will be stalled, can be fixed later down the line
+only 1 branch can be renamed per cycle, as only a single checkpoint can be created through distributed ram
+	-making it dual ported might not make distributed ram work, also would result in WAAYYY more resources used
+	
+

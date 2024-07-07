@@ -106,8 +106,8 @@ module branch_target_buffer #(
     assign guess_valid[1] = access_dout[1][`ADDR_WIDTH];
     assign guess[0] = access_dout[0][`ADDR_WIDTH-1:0];
     assign guess[1] = access_dout[1][`ADDR_WIDTH-1:0];
-    assign tag_match[0] = access_addr_stored[0][`ADDR_WIDTH-1:2+$clog2(SIZE)] == access_dout[0][`ADDR_WIDTH-1:2+$clog2(SIZE)];
-    assign tag_match[1] = access_addr_stored[1][`ADDR_WIDTH-1:2+$clog2(SIZE)] == access_dout[1][`ADDR_WIDTH-1:2+$clog2(SIZE)];
+    assign tag_match[0] = access_addr_stored[0][`ADDR_WIDTH-1:2+$clog2(SIZE)] == access_dout[0][LINE_SIZE-1:`ADDR_WIDTH];
+    assign tag_match[1] = access_addr_stored[1][`ADDR_WIDTH-1:2+$clog2(SIZE)] == access_dout[1][LINE_SIZE-1:`ADDR_WIDTH];
     
 endmodule
 
