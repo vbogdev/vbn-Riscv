@@ -20,7 +20,7 @@ module top(
     );
     
     logic [207:0] input_bus, setup_bus;
-    logic [227:0] output_bus;
+    logic [239:0] output_bus;
     
     always_ff @(posedge clk) begin
         if(run) begin
@@ -66,7 +66,7 @@ module top(
             4'b1100: outputs = output_bus[194:180];
             4'b1101: outputs = output_bus[209:195];
             4'b1110: outputs = output_bus[224:210];
-            4'b1111: outputs = {{12{1'b0}}, output_bus[227:225]};
+            4'b1111: outputs = {{10{1'b0}}, output_bus[229:225]};
         endcase
     end
     
@@ -96,23 +96,23 @@ module top(
     assign ext_stall = input_bus[134];
     assign ext_flush = input_bus[135];
     assign wb[0].valid = input_bus[136];
-    assign wb[0].al_idx = input_bus[140:137];
-    assign wb[0].rd = input_bus[146:141];
-    assign wb[0].uses_rd = input_bus[147];
-    assign wb[1].valid = input_bus[148];
-    assign wb[1].al_idx = input_bus[152:149];
-    assign wb[1].rd = input_bus[158:153];
-    assign wb[1].uses_rd = input_bus[159];
-    assign wb[2].valid = input_bus[160];
-    assign wb[2].al_idx = input_bus[164:161];
-    assign wb[2].rd = input_bus[170:165];
-    assign wb[2].uses_rd = input_bus[170];
-    assign wb[3].valid = input_bus[171];
-    assign wb[3].al_idx = input_bus[175:172];
-    assign wb[3].rd = input_bus[181:176];
-    assign wb[3].uses_rd = input_bus[182];
-    assign branch_fb[0].al_addr = input_bus[186:183];
-    assign branch_fb[1].al_addr = input_bus[190:187];
+    assign wb[0].al_idx = input_bus[142:137];
+    assign wb[0].rd = input_bus[148:143];
+    assign wb[0].uses_rd = input_bus[149];
+    assign wb[1].valid = input_bus[150];
+    assign wb[1].al_idx = input_bus[156:151];
+    assign wb[1].rd = input_bus[162:157];
+    assign wb[1].uses_rd = input_bus[163];
+    assign wb[2].valid = input_bus[164];
+    assign wb[2].al_idx = input_bus[170:165];
+    assign wb[2].rd = input_bus[176:171];
+    assign wb[2].uses_rd = input_bus[177];
+    assign wb[3].valid = input_bus[178];
+    assign wb[3].al_idx = input_bus[184:179];
+    assign wb[3].rd = input_bus[190:185];
+    assign wb[3].uses_rd = input_bus[191];
+    assign branch_fb[0].cp_addr = input_bus[197:192];
+    assign branch_fb[1].cp_addr = input_bus[203:198];
     
     assign output_bus[0] = ren_out[0].valid;
     assign output_bus[1] = ren_out[0].uses_rd;
@@ -135,27 +135,29 @@ module top(
     assign output_bus[106] = ren_out[0].amo_instr;
     assign output_bus[107] = ren_out[0].aq;
     assign output_bus[108] = ren_out[0].rl;
-    assign output_bus[0+109] = ren_out[0].valid;
-    assign output_bus[1+109] = ren_out[0].uses_rd;
-    assign output_bus[2+109] = ren_out[0].uses_rs1;
-    assign output_bus[3+109] = ren_out[0].uses_rs2;
-    assign output_bus[4+109] = ren_out[0].uses_imm;
-    assign output_bus[10+109:5+109] = ren_out[0].rd;
-    assign output_bus[16+109:11+109] = ren_out[0].rs1;
-    assign output_bus[22+109:17+109] = ren_out[0].rs2;
-    assign output_bus[54+109:23+109] = ren_out[0].imm;
-    assign output_bus[86+109:55+109] = ren_out[0].target;
-    assign output_bus[87+109] = ren_out[0].is_branch;
-    assign output_bus[88+109] = ren_out[0].is_jump;
-    assign output_bus[89+109] = ren_out[0].is_jump_register;
-    assign output_bus[90+109] = ren_out[0].is_mem_access;
-    assign output_bus[91+109] = ren_out[0].accesses_csr;
-    assign output_bus[103+109:92+109] = ren_out[0].csr_addr;
-    assign output_bus[104+109] = ren_out[0].ecall;
-    assign output_bus[105+109] = ren_out[0].ebreak;
-    assign output_bus[106+109] = ren_out[0].amo_instr;
-    assign output_bus[107+109] = ren_out[0].aq;
-    assign output_bus[108+109] = ren_out[0].rl;
+    assign output_bus[0+109] = ren_out[1].valid;
+    assign output_bus[1+109] = ren_out[1].uses_rd;
+    assign output_bus[2+109] = ren_out[1].uses_rs1;
+    assign output_bus[3+109] = ren_out[1].uses_rs2;
+    assign output_bus[4+109] = ren_out[1].uses_imm;
+    assign output_bus[10+109:5+109] = ren_out[1].rd;
+    assign output_bus[16+109:11+109] = ren_out[1].rs1;
+    assign output_bus[22+109:17+109] = ren_out[1].rs2;
+    assign output_bus[54+109:23+109] = ren_out[1].imm;
+    assign output_bus[86+109:55+109] = ren_out[1].target;
+    assign output_bus[87+109] = ren_out[1].is_branch;
+    assign output_bus[88+109] = ren_out[1].is_jump;
+    assign output_bus[89+109] = ren_out[1].is_jump_register;
+    assign output_bus[90+109] = ren_out[1].is_mem_access;
+    assign output_bus[91+109] = ren_out[1].accesses_csr;
+    assign output_bus[103+109:92+109] = ren_out[1].csr_addr;
+    assign output_bus[104+109] = ren_out[1].ecall;
+    assign output_bus[105+109] = ren_out[1].ebreak;
+    assign output_bus[106+109] = ren_out[1].amo_instr;
+    assign output_bus[107+109] = ren_out[1].aq;
+    assign output_bus[108+109] = ren_out[1].rl;
+    assign output_bus[223:218] = ren_out[0].al_addr;
+    assign output_bus[229:224] = ren_out[1].al_addr;
     
     
     fetch_stage FETCH(

@@ -9,10 +9,10 @@ Module Purpose:
     -make checkpointer from ram into fifo with recall
 */
 module checkpointer #(
-    parameter LINE_SIZE = $clog2(`AL_SIZE) * 2 + 6*64 + 7 + 6 + 6 + 6*32 + $clog2(`AL_SIZE)+1
+    parameter LINE_SIZE = $clog2(`AL_SIZE) * 2 + 6*64 + 7 + 6 + 6 + 6*32 + $clog2(`AL_SIZE)+1+64
     )(
     input clk, reset,
-    input ext_stall, ext_flush,
+    input ext_stall,
     //validate checkpoint
     input validate [`NUM_BRANCHES_RESOLVED],
     input [$clog2(`NUM_CHECKPOINTS)-1:0] validated_id [`NUM_BRANCHES_RESOLVED],
@@ -25,12 +25,14 @@ module checkpointer #(
     input [5:0] free_list [64],
     input [6:0] fl_size,
     input [5:0] fl_front, fl_back,
-    input [$clog2(`AL_SIZE)-1:0] al_front, al_back,
-    input [$clog2(`AL_SIZE):0] al_size,
+    input [$clog2(`AL_SIZE)-1:0] al_front,
     input [5:0] RMT_copy [32],
+    input [63:0] bbl,
     //outputs
     output logic [LINE_SIZE-1:0] recalled_data,
-    output logic int_stall
+    output logic int_stall,
+    output logic [$clog2(`AL_SIZE)-1:0] oldest_al,
+    output logic no_checkpoints
     );
     
     logic [$clog2(`NUM_CHECKPOINTS)-1:0] checkpoint_front, checkpoint_back;
@@ -39,13 +41,16 @@ module checkpointer #(
     
     logic [LINE_SIZE-1:0] din;
     
+    logic [$clog2(`AL_SIZE)-1:0] al_addresses [`NUM_CHECKPOINTS];
+    
     assign din[390:384] = fl_size;
     assign din[396:391] = fl_front;
     assign din[402:397] = fl_back;
     assign din[$clog2(`AL_SIZE)-1+403:403] = al_front;
     assign din[$clog2(`AL_SIZE)-1+403+$clog2(`AL_SIZE):$clog2(`AL_SIZE)+403] = 0;//al_back; <-- YOU SHOULDNT NEED THE BACK OF THE ACTIVE LIST
-    assign din[$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)+$clog2(`AL_SIZE):$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)] = al_size;
+    assign din[$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)+$clog2(`AL_SIZE):$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)] = 0;
     localparam t = $clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)+$clog2(`AL_SIZE)+1;
+    assign din[t+32*6+63:t+32*6] = bbl;
     genvar i;
     generate
         for(i = 0; i < 64; i++) begin
@@ -81,6 +86,8 @@ module checkpointer #(
         .dout(recalled_data)
     );
     
+    assign oldest_al = al_addresses[checkpoint_back];
+    assign no_checkpoints = (num_checkpoints == 0);
     
     always_ff @(posedge clk) begin
         if(reset) begin
@@ -97,6 +104,7 @@ module checkpointer #(
                 end
             end
             checkpoint_validated[checkpoint_front] <= 0;
+            al_addresses[checkpoint_front] <= al_front;
             if(checkpoint_validated[checkpoint_back]) begin
                 checkpoint_back <= checkpoint_back + 1; 
             end else begin
