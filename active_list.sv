@@ -62,6 +62,9 @@ module active_list(
             al_front <= 0;
             al_back <= 0;
             al_size <= 0;
+            for(int i = 0; i < `AL_SIZE; i++) begin
+                al_done[i] <= 0;
+            end
         end else begin
             //mark entries as done as necessary
             for(int i = 0; i < `NUM_INSTRS_COMPLETED; i++) begin
@@ -83,6 +86,7 @@ module active_list(
                     al_done[al_front + 2] <= 0;
                     al_entry[al_front + 1] <= {arch_rd[0], phys_rd[0]};
                     al_entry[al_front + 2] <= {arch_rd[1], phys_rd[1]};
+                    al_front <= al_front + 2;
                     if(al_done[al_back]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size + 1;
@@ -92,6 +96,7 @@ module active_list(
                 end else if(valid_instr[0]) begin
                     al_done[al_front + 1] <= 0;
                     al_entry[al_front + 1] <= {arch_rd[0], phys_rd[0]};
+                    al_front <= al_front + 1;
                     if(al_done[al_back]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size;
@@ -101,6 +106,7 @@ module active_list(
                 end else if(valid_instr[1]) begin
                     al_done[al_front + 1] <= 0;
                     al_entry[al_front + 1] <= {arch_rd[1], phys_rd[1]};
+                    al_front <= al_front + 1;
                     if(al_done[al_back]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size;

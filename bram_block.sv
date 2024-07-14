@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 module bram_block #(
     parameter WIDTH = 32,
     parameter DEPTH = 32,

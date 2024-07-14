@@ -5,7 +5,7 @@ module arithmetic_iq #(
     parameter SIZE = 8
     )(
     input clk, reset,
-    input ext_flush, ext_stall,
+    input ext_stall,
     //incoming instr
     rename_out_ifc.in i_ren [2],
     //recall
@@ -44,9 +44,9 @@ module arithmetic_iq #(
     
     logic [$clog2(SIZE):0] queue_size;
     always_comb begin
-        for(int i = 0; i < SIZE; i++) begin
-            queue_size = queue_size + valid[i]; 
-        end
+        queue_size = valid[0] + valid[1] + valid[2] + valid[3] + valid[4] + valid[5] + valid[6]
+            + valid[7];
+        
         
         for(int i = 0; i < SIZE; i++) begin
             rs1_ready[i] = ~uses_rs1[i] || ~bbt[rs1[i]];
@@ -169,6 +169,7 @@ module arithmetic_iq #(
                 o_iq[i].uses_imm = uses_imm[selected[i]];
                 o_iq[i].imm = imm[selected[i]];
                 o_iq[i].alu_operation = alu_operation[selected[i]];
+                o_iq[i].al_addr = i_ren[i].al_addr;
                 o_iq[i].target = target[selected[i]];
                 o_iq[i].is_branch = is_branch[selected[i]];
                 o_iq[i].is_jump = is_jump[selected[i]];

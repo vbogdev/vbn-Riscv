@@ -32,7 +32,8 @@ module checkpointer #(
     output logic [LINE_SIZE-1:0] recalled_data,
     output logic int_stall,
     output logic [$clog2(`AL_SIZE)-1:0] oldest_al,
-    output logic no_checkpoints
+    output logic no_checkpoints,
+    output [$clog2(`NUM_CHECKPOINTS)-1:0] cp_addr
     );
     
     logic [$clog2(`NUM_CHECKPOINTS)-1:0] checkpoint_front, checkpoint_back;
@@ -40,6 +41,7 @@ module checkpointer #(
     /*(* ram_style = "registers" *) */logic checkpoint_validated [`NUM_CHECKPOINTS];
     
     logic [LINE_SIZE-1:0] din;
+    assign cp_addr = checkpoint_front;
     
     logic [$clog2(`AL_SIZE)-1:0] al_addresses [`NUM_CHECKPOINTS];
     

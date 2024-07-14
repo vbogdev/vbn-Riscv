@@ -14,6 +14,7 @@ module decode_stage(
     logic [`ADDR_WIDTH-1:0] new_pc [2];
     
     decoder dec1(
+        .valid(i_fetch[0].valid),
         .i_instr(i_fetch[0].instr),
         .i_pc(i_fetch[0].pc),
         .guesses_branch(i_fetch[0].guesses_branch),
@@ -23,6 +24,7 @@ module decode_stage(
         .o_new_pc(new_pc[0])
     );
     decoder dec2(
+        .valid(i_fetch[1].valid),
         .i_instr(i_fetch[1].instr),
         .i_pc(i_fetch[1].pc),
         .guesses_branch(i_fetch[1].guesses_branch),

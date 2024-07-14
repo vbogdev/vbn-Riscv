@@ -8,6 +8,7 @@ module rename_stage(
     
     wb_ifc.in i_wb [`NUM_INSTRS_COMPLETED],
     rename_out_ifc.out o_renamed [2],
+    output logic [63:0] bbt,
     output logic int_stall
     );
     /*
@@ -28,14 +29,14 @@ module rename_stage(
     logic instrs_left_to_rename; //should be high during the second instruction renamed
     logic instrs_valid [2];
     assign two_cycle_rename = (i_decode[0].valid && i_decode[0].is_branch && i_decode[1].valid && i_decode[1].is_branch) && ~instrs_left_to_rename; //should be high during first instruction renamed
-    assign instrs_valid[0] = two_cycle_rename ? ~instrs_left_to_rename : 1;
-    assign instrs_valid[1] = two_cycle_rename ? 0 : 1;
+    assign instrs_valid[0] = two_cycle_rename ? ~instrs_left_to_rename : i_decode[0].valid;
+    assign instrs_valid[1] = two_cycle_rename ? 0 : i_decode[1].valid;
     
     logic stall;
     
     always_ff @(posedge clk) begin
         if(reset) begin
-        
+            instrs_left_to_rename <= 0;
         end else begin
             if(ext_flush) begin
                 instrs_left_to_rename <= 0;
@@ -91,6 +92,7 @@ module rename_stage(
     logic [$clog2(`AL_SIZE)-1:0] checkpointed_al_idx;
     logic [$clog2(`AL_SIZE) * 2 + 6*64 + 7 + 6 + 6 + 6*32 + $clog2(`AL_SIZE)+1+64-1:0] checkpoint_line;
     logic checkpoint_stall;
+    logic [$clog2(`NUM_CHECKPOINTS)-1:0] checkpoint_id;
     
     
     logic al_ext_stall;
@@ -239,7 +241,8 @@ module rename_stage(
         .recalled_data(checkpoint_line),
         .int_stall(checkpoint_stall),
         .oldest_al(),
-        .no_checkpoints()
+        .no_checkpoints(),
+        .cp_addr(checkpoint_id)
     );
     
     
@@ -257,13 +260,15 @@ module rename_stage(
         .clk, .reset, 
         .ext_stall(int_stall),
         .busify(uses_rd),
-        .busify_addr(phys_rd),
+        .busy_addr(phys_rd),
         .done(wb_rd_valid),
         .done_addr(wb_rd_addr),
         .if_recall,
         .recalled_list(recalled_bbl),
         .expected_list(checkpointed_bbl)
     );
+    
+    assign bbt = checkpointed_bbl;
     
     
     generate
@@ -300,8 +305,7 @@ module rename_stage(
                     o_renamed[i].rl <= 0;
                     o_renamed[i].amo_type <= AMO_LR;
                     o_renamed[i].al_addr <= 0;
-                    o_renamed[i].rs1_ready <= 0;
-                    o_renamed[i].rs2_ready <= 0;
+                    o_renamed[i].cp_addr <= 0;
                 end else if(~ext_stall) begin
                     o_renamed[i].valid <= instrs_valid[i];
                     o_renamed[i].uses_rd <= i_decode[i].uses_rd;
@@ -333,8 +337,7 @@ module rename_stage(
                     o_renamed[i].rl <= i_decode[i].rl;
                     o_renamed[i].amo_type <= i_decode[i].amo_type;
                     o_renamed[i].al_addr <= allocated_al_idx[i];
-                    o_renamed[i].rs1_ready <= checkpointed_bbl[o_renamed[i].rs1] || ~o_renamed[i].uses_rs1;
-                    o_renamed[i].rs2_ready <= checkpointed_bbl[o_renamed[i].rs2] || ~o_renamed[i].uses_rs2;
+                    o_renamed[i].cp_addr <= checkpoint_id;
                 end
             end
         end

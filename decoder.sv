@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 `include "riscv_core.svh"
 module decoder(
+    input valid,
     input [31:0] i_instr,
     input guesses_branch,
     input [`ADDR_WIDTH-1:0] prediction,
@@ -237,113 +238,116 @@ module decoder(
         o_dec.aq = 0;
         o_dec.rl = 0;
         o_dec.amo_type = AMO_LR;
-        o_branch_inconsistency = ~guesses_branch;
+        o_branch_inconsistency = (guesses_branch && (~o_dec.is_branch && ~o_dec.is_jump_register)) ||
+            (~guesses_branch && (o_dec.is_branch || o_dec.is_jump_register));
         o_new_pc = i_pc + 'd4;
         o_dec.valid = 0;
-        case(opcode)
-            7'b0010011: begin //op imm
-                i_type(.instr(i_instr));
-                arithmetic_i_type(.funct3(funct3));
-                o_dec.uses_rd = 1;
-                o_dec.uses_rs1 = 1;
-                o_dec.uses_imm = 1;
-            end
-            7'b0110111: begin //lui
-                u_type(.instr(i_instr));
-                o_dec.uses_rd = 1;
-                o_dec.uses_rs1 = 1;
-                o_dec.rs1 = 0;
-                o_dec.uses_imm = 1;
-            end
-            7'b0010111: begin //auipc
-                u_type(.instr(i_instr));
-                o_dec.imm = {i_instr[31:12], {12{1'b0}}} + i_pc;
-                o_dec.uses_imm = 1;
-                o_dec.uses_rs1 = 1;
-                o_dec.rs1 = 0;
-            end
-            7'b0110011: begin //op
-                r_type(.instr(i_instr));
-                arithmetic_r_type(.funct7(funct7), .funct3(funct3));
-                o_dec.uses_rd = 1;
-                o_dec.uses_rs1 = 1;
-                o_dec.uses_rs2 = 1;
-            end
-            7'b1101111: begin //jal
-                j_type(.instr(i_instr));
-                o_dec.is_jump = 1;
-                o_dec.target = i_pc + {{11{i_instr[31]}}, i_instr[31], i_instr[19:12], i_instr[20], i_instr[30:21], 1'b0};
-                o_dec.imm = i_pc + 'd4;
-                o_dec.uses_rd = 1;
-                o_dec.uses_rs1 = 1;
-                o_dec.rs1 = 0;
-                o_dec.uses_imm = 1;
-                o_branch_inconsistency = ~(guesses_branch && (o_dec.target == prediction));
-                o_new_pc = o_dec.target;
-            end
-            7'b1100111: begin //jalr
-                i_type(.instr(i_instr));
-                o_dec.is_jump = 1;
-                o_dec.is_jump_register = 1;
-                o_dec.target = i_pc + 'd4;
-                o_dec.uses_rd = 1;
-                o_dec.uses_rs1 = 1;
-                o_dec.uses_imm = 1;
-                o_branch_inconsistency = 0;
-            end
-            7'b1100011: begin //branch
-                b_type(.instr(i_instr));
-                branch_type(.funct3(funct3));
-                o_dec.target = o_dec.imm + i_pc;
-                o_dec.uses_rs1 = 1;
-                o_dec.uses_rs2 = 1;
-                o_dec.is_branch = 1;
-                o_dec.prediction = (prediction == i_pc + 'd4) ? TAKEN : NOT_TAKEN;
-                o_branch_inconsistency = ~(guesses_branch && (o_dec.target == prediction));
-                o_new_pc = o_dec.target;
-            end
-            7'b0000011: begin //load
-                i_type(.instr(i_instr));
-                memory_type(.funct3(funct3), .opcode(opcode));
-                o_dec.uses_rs1 = 1;
-                o_dec.uses_rd = 1;
-                o_dec.uses_imm = 1;
-                o_dec.is_mem_access = 1;
-                o_dec.alu_operation = ALUCTL_ADD;
-            end
-            7'b0100011: begin //store
-                s_type(.instr(i_instr));
-                memory_type(.funct3(funct3), .opcode(opcode));
-                o_dec.uses_rs1 = 1;
-                o_dec.uses_rs2 = 1;
-                o_dec.uses_imm = 1;
-                o_dec.is_mem_access = 1;
-                o_dec.mem_access_type = WRITE;
-                o_dec.alu_operation = ALUCTL_ADD;
-            end
-            7'b0001111: begin //fence
-                i_type(.instr(i_instr));
-                //WIP
-            end
-            7'b1110011: begin //csr stuff and ecall/ebreak
-                i_type(.instr(i_instr));
-                if(funct3 == 3'b000) begin
-                    if(i_instr[31:20] == 12'b000000000001) begin
-                        o_dec.ebreak = 1;
-                    end else if(i_instr[31:20] == 12'b000000000000) begin
-                        o_dec.ecall = 1;
-                    end
-                end else begin
-                    csr_type(.funct3(funct3));
+        if(valid) begin
+            case(opcode)
+                7'b0010011: begin //op imm
+                    i_type(.instr(i_instr));
+                    arithmetic_i_type(.funct3(funct3));
                     o_dec.uses_rd = 1;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.uses_imm = 1;
                 end
-            end
-            7'b0101111: begin //AMO
-                r_type(.instr(i_instr));
-                amo_type(.funct3(funct3));
-            end
-            default: ;
-        endcase
+                7'b0110111: begin //lui
+                    u_type(.instr(i_instr));
+                    o_dec.uses_rd = 1;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.rs1 = 0;
+                    o_dec.uses_imm = 1;
+                end
+                7'b0010111: begin //auipc
+                    u_type(.instr(i_instr));
+                    o_dec.imm = {i_instr[31:12], {12{1'b0}}} + i_pc;
+                    o_dec.uses_imm = 1;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.rs1 = 0;
+                end
+                7'b0110011: begin //op
+                    r_type(.instr(i_instr));
+                    arithmetic_r_type(.funct7(funct7), .funct3(funct3));
+                    o_dec.uses_rd = 1;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.uses_rs2 = 1;
+                end
+                7'b1101111: begin //jal
+                    j_type(.instr(i_instr));
+                    o_dec.is_jump = 1;
+                    o_dec.target = i_pc + {{11{i_instr[31]}}, i_instr[31], i_instr[19:12], i_instr[20], i_instr[30:21], 1'b0};
+                    o_dec.imm = i_pc + 'd4;
+                    o_dec.uses_rd = 1;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.rs1 = 0;
+                    o_dec.uses_imm = 1;
+                    o_branch_inconsistency = ~(guesses_branch && (o_dec.target == prediction));
+                    o_new_pc = o_dec.target;
+                end
+                7'b1100111: begin //jalr
+                    i_type(.instr(i_instr));
+                    o_dec.is_jump = 1;
+                    o_dec.is_jump_register = 1;
+                    o_dec.target = i_pc + 'd4;
+                    o_dec.uses_rd = 1;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.uses_imm = 1;
+                    o_branch_inconsistency = 0;
+                end
+                7'b1100011: begin //branch
+                    b_type(.instr(i_instr));
+                    branch_type(.funct3(funct3));
+                    o_dec.target = o_dec.imm + i_pc;
+                    o_dec.uses_rs1 = 1;
+                    o_dec.uses_rs2 = 1;
+                    o_dec.is_branch = 1;
+                    o_dec.prediction = (prediction == i_pc + 'd4) ? TAKEN : NOT_TAKEN;
+                    o_branch_inconsistency = ~(guesses_branch && (o_dec.target == prediction));
+                    o_new_pc = o_dec.target;
+                end
+                7'b0000011: begin //load
+                    i_type(.instr(i_instr));
+                    memory_type(.funct3(funct3), .opcode(opcode));
+                    o_dec.uses_rs1 = 1;
+                    o_dec.uses_rd = 1;
+                    o_dec.uses_imm = 1;
+                    o_dec.is_mem_access = 1;
+                    o_dec.alu_operation = ALUCTL_ADD;
+                end
+                7'b0100011: begin //store
+                    s_type(.instr(i_instr));
+                    memory_type(.funct3(funct3), .opcode(opcode));
+                    o_dec.uses_rs1 = 1;
+                    o_dec.uses_rs2 = 1;
+                    o_dec.uses_imm = 1;
+                    o_dec.is_mem_access = 1;
+                    o_dec.mem_access_type = WRITE;
+                    o_dec.alu_operation = ALUCTL_ADD;
+                end
+                7'b0001111: begin //fence
+                    i_type(.instr(i_instr));
+                    //WIP
+                end
+                7'b1110011: begin //csr stuff and ecall/ebreak
+                    i_type(.instr(i_instr));
+                    if(funct3 == 3'b000) begin
+                        if(i_instr[31:20] == 12'b000000000001) begin
+                            o_dec.ebreak = 1;
+                        end else if(i_instr[31:20] == 12'b000000000000) begin
+                            o_dec.ecall = 1;
+                        end
+                    end else begin
+                        csr_type(.funct3(funct3));
+                        o_dec.uses_rd = 1;
+                    end
+                end
+                7'b0101111: begin //AMO
+                    r_type(.instr(i_instr));
+                    amo_type(.funct3(funct3));
+                end
+                default: ;
+            endcase
+        end
     end
     
 endmodule

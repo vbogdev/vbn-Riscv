@@ -20,6 +20,8 @@ module fetch_stage(
     logic cache_stall;
     logic guesses_branch [2];
     assign predictor_stall = cache_stall || ext_stall || miss[0] || miss[1];
+    
+    
     temp_next_pc_predictor PREDICTOR(
         .clk, .reset, 
         .ext_stall(predictor_stall), 
@@ -35,9 +37,19 @@ module fetch_stage(
     logic [31:0] read_instr [2];
     logic valid_read [2];
     logic [`ADDR_WIDTH-1:0] read_pc [2];
+    
+    logic [`ADDR_WIDTH-1:0] prev_addr [2];
     always_ff @(posedge clk) begin
+        
         read_pc[0] <= predicted_pc[0];
         read_pc[1] <= predicted_pc[1];
+        if(reset) begin
+            prev_addr[0] <= 'd16;
+            prev_addr[0] <= 'd16;
+        end else begin
+            prev_addr[0] <= read_pc[0];
+            prev_addr[1] <= read_pc[1];
+        end
     end
     
     
@@ -56,12 +68,12 @@ module fetch_stage(
         .int_stall(cache_stall)
     );
     
-    assign o_instr[0].valid = ~miss[0];
+    assign o_instr[0].valid = ~miss[0] && (prev_addr[0] != read_pc[0]);
     assign o_instr[0].pc = read_pc[0];
     assign o_instr[0].instr = read_instr[0];
     assign o_instr[0].guesses_branch = guesses_branch[0];
     assign o_instr[0].prediction = predicted_pc[0];
-    assign o_instr[1].valid = ~miss[1];
+    assign o_instr[1].valid = ~miss[1] && (prev_addr[1] != read_pc[1]);
     assign o_instr[1].pc = read_pc[1];
     assign o_instr[1].instr = read_instr[1];
     assign o_instr[1].guesses_branch = guesses_branch[1];

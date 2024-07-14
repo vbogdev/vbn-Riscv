@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 `include "riscv_core.svh"
 
 module i_cache #(

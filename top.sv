@@ -4,186 +4,215 @@
 module top(
     input reset,
     input sys_clk_pin,
-    input set,
-    input run,
     input [3:0] switches,
-    input [12:0] inputs,
-    output logic [14:0] outputs
+    input set,
+    input [9:0] inputs,
+    output logic [3:0] r1
     );
     
     logic clk, locked;
-    clk_100_mhz CLK_MANAGER(
+    /*clk_100_mhz CLK_MANAGER(
         .clk_out1(clk), 
         .reset(reset), // input reset
         .locked(locked),       // output locked
         .clk_in(sys_clk_pin)      // input clk_in
-    );
+    );*/
+    assign clk = sys_clk_pin;
     
-    logic [207:0] input_bus, setup_bus;
-    logic [239:0] output_bus;
-    
+    logic [159:0] reg_inputs, direct_inputs;
     always_ff @(posedge clk) begin
-        if(run) begin
-            input_bus <= setup_bus;
-        end
         if(set) begin
-            case(switches) 
-                4'b0000: setup_bus[12:0] <= inputs;
-                4'b0001: setup_bus[25:13] <= inputs;
-                4'b0010: setup_bus[38:26] <= inputs;
-                4'b0011: setup_bus[51:39] <= inputs;
-                4'b0100: setup_bus[64:52] <= inputs;
-                4'b0101: setup_bus[77:65] <= inputs;
-                4'b0110: setup_bus[90:78] <= inputs;
-                4'b0111: setup_bus[103:91] <= inputs;
-                4'b1000: setup_bus[116:104] <= inputs;
-                4'b1001: setup_bus[129:117] <= inputs;
-                4'b1010: setup_bus[142:130] <= inputs;
-                4'b1011: setup_bus[155:143] <= inputs;
-                4'b1100: setup_bus[168:156] <= inputs;
-                4'b1101: setup_bus[181:169] <= inputs;
-                4'b1110: setup_bus[194:182] <= inputs;
-                default: setup_bus[207:195] <= inputs;
-            endcase
-        end
-    end
-    
-    always_comb begin
-        outputs = 10'b0;
+            direct_inputs <= reg_inputs;
+        end 
+        
         case(switches) 
-            4'b0000: outputs = output_bus[14:0];
-            4'b0001: outputs = output_bus[29:15];
-            4'b0010: outputs = output_bus[44:30];
-            4'b0011: outputs = output_bus[59:45];
-            4'b0100: outputs = output_bus[74:60];
-            4'b0101: outputs = output_bus[89:75];
-            4'b0110: outputs = output_bus[104:90];
-            4'b0111: outputs = output_bus[119:105];
-            4'b1000: outputs = output_bus[134:120];
-            4'b1001: outputs = output_bus[149:135];
-            4'b1010: outputs = output_bus[164:150];
-            4'b1011: outputs = output_bus[179:165];
-            4'b1100: outputs = output_bus[194:180];
-            4'b1101: outputs = output_bus[209:195];
-            4'b1110: outputs = output_bus[224:210];
-            4'b1111: outputs = {{10{1'b0}}, output_bus[229:225]};
+            4'b0000: reg_inputs[9:0] <= inputs;
+            4'b0001: reg_inputs[19:10] <= inputs;
+            4'b0010: reg_inputs[29:20] <= inputs;
+            4'b0011: reg_inputs[39:30] <= inputs;
+            4'b0100: reg_inputs[49:40] <= inputs;
+            4'b0101: reg_inputs[59:50] <= inputs;
+            4'b0110: reg_inputs[69:60] <= inputs;
+            4'b0111: reg_inputs[79:70] <= inputs;
+            4'b1000: reg_inputs[89:80] <= inputs;
+            4'b1001: reg_inputs[99:90] <= inputs;
+            4'b1010: reg_inputs[109:100] <= inputs;
+            4'b1011: reg_inputs[119:110] <= inputs;
+            4'b1100: reg_inputs[129:120] <= inputs;
+            4'b1101: reg_inputs[139:130] <= inputs;
+            4'b1110: reg_inputs[149:140] <= inputs;
+            4'b1111: reg_inputs[159:150] <= inputs;
         endcase
     end
     
-    
-    
+    //fetch ifcs and vars
     branch_fb_ifc branch_fb[2]();
-    branch_fb_decode_ifc decode_fb();
-    logic ext_stall, ext_flush;
-    logic stall_decode, stall_fetch, stall_rename;
-    assign stall_decode = stall_rename;
-    assign stall_fetch = stall_decode;
-    fetch_out_ifc instr[2]();
+    branch_fb_decode_ifc branch_fb_dec();
+    logic ext_stall_fetch, ext_flush_fetch;
+    assign ext_flush_fetch = 0;
+    fetch_out_ifc fetch_out[2]();
+    logic [31:0] fetch_addr;
+    logic fetch_addr_valid;
+    logic [63:0] fetched_data;
+    
+    assign fetch_addr = direct_inputs[31:0];
+    assign fetch_addr_valid = direct_inputs[32];
+    assign fetched_data = direct_inputs[96:33];
+    
+    //decode ifcs and vars
+    logic ext_stall_dec, ext_flush_dec;
+    assign ext_flush_dec = 0;
     decode_out_ifc dec_out[2]();
+    
+    //rename ifcs and vars
+    logic ext_stall_ren, ext_flush_ren;
+    //assign ext_stall_ren = 0;
+    assign ext_flush_ren = 0;
+    wb_ifc wb[2]();
     rename_out_ifc ren_out[2]();
-    wb_ifc wb [4]();
-    
-    assign branch_fb[0].if_branch = input_bus[0];
-    assign branch_fb[0].if_prediction_correct = input_bus[1];
-    assign branch_fb[0].outcome = input_bus[2] ? TAKEN : NOT_TAKEN;
-    assign branch_fb[0].branch_pc = input_bus[34:3];
-    assign branch_fb[0].new_pc = input_bus[66:35];
-    assign branch_fb[1].if_branch = input_bus[67];
-    assign branch_fb[1].if_prediction_correct = input_bus[68];
-    assign branch_fb[1].outcome = input_bus[69] ? TAKEN : NOT_TAKEN;
-    assign branch_fb[1].branch_pc = input_bus[101:70];
-    assign branch_fb[1].new_pc = input_bus[133:102];
-    assign ext_stall = input_bus[134];
-    assign ext_flush = input_bus[135];
-    assign wb[0].valid = input_bus[136];
-    assign wb[0].al_idx = input_bus[142:137];
-    assign wb[0].rd = input_bus[148:143];
-    assign wb[0].uses_rd = input_bus[149];
-    assign wb[1].valid = input_bus[150];
-    assign wb[1].al_idx = input_bus[156:151];
-    assign wb[1].rd = input_bus[162:157];
-    assign wb[1].uses_rd = input_bus[163];
-    assign wb[2].valid = input_bus[164];
-    assign wb[2].al_idx = input_bus[170:165];
-    assign wb[2].rd = input_bus[176:171];
-    assign wb[2].uses_rd = input_bus[177];
-    assign wb[3].valid = input_bus[178];
-    assign wb[3].al_idx = input_bus[184:179];
-    assign wb[3].rd = input_bus[190:185];
-    assign wb[3].uses_rd = input_bus[191];
-    assign branch_fb[0].cp_addr = input_bus[197:192];
-    assign branch_fb[1].cp_addr = input_bus[203:198];
-    
-    assign output_bus[0] = ren_out[0].valid;
-    assign output_bus[1] = ren_out[0].uses_rd;
-    assign output_bus[2] = ren_out[0].uses_rs1;
-    assign output_bus[3] = ren_out[0].uses_rs2;
-    assign output_bus[4] = ren_out[0].uses_imm;
-    assign output_bus[10:5] = ren_out[0].rd;
-    assign output_bus[16:11] = ren_out[0].rs1;
-    assign output_bus[22:17] = ren_out[0].rs2;
-    assign output_bus[54:23] = ren_out[0].imm;
-    assign output_bus[86:55] = ren_out[0].target;
-    assign output_bus[87] = ren_out[0].is_branch;
-    assign output_bus[88] = ren_out[0].is_jump;
-    assign output_bus[89] = ren_out[0].is_jump_register;
-    assign output_bus[90] = ren_out[0].is_mem_access;
-    assign output_bus[91] = ren_out[0].accesses_csr;
-    assign output_bus[103:92] = ren_out[0].csr_addr;
-    assign output_bus[104] = ren_out[0].ecall;
-    assign output_bus[105] = ren_out[0].ebreak;
-    assign output_bus[106] = ren_out[0].amo_instr;
-    assign output_bus[107] = ren_out[0].aq;
-    assign output_bus[108] = ren_out[0].rl;
-    assign output_bus[0+109] = ren_out[1].valid;
-    assign output_bus[1+109] = ren_out[1].uses_rd;
-    assign output_bus[2+109] = ren_out[1].uses_rs1;
-    assign output_bus[3+109] = ren_out[1].uses_rs2;
-    assign output_bus[4+109] = ren_out[1].uses_imm;
-    assign output_bus[10+109:5+109] = ren_out[1].rd;
-    assign output_bus[16+109:11+109] = ren_out[1].rs1;
-    assign output_bus[22+109:17+109] = ren_out[1].rs2;
-    assign output_bus[54+109:23+109] = ren_out[1].imm;
-    assign output_bus[86+109:55+109] = ren_out[1].target;
-    assign output_bus[87+109] = ren_out[1].is_branch;
-    assign output_bus[88+109] = ren_out[1].is_jump;
-    assign output_bus[89+109] = ren_out[1].is_jump_register;
-    assign output_bus[90+109] = ren_out[1].is_mem_access;
-    assign output_bus[91+109] = ren_out[1].accesses_csr;
-    assign output_bus[103+109:92+109] = ren_out[1].csr_addr;
-    assign output_bus[104+109] = ren_out[1].ecall;
-    assign output_bus[105+109] = ren_out[1].ebreak;
-    assign output_bus[106+109] = ren_out[1].amo_instr;
-    assign output_bus[107+109] = ren_out[1].aq;
-    assign output_bus[108+109] = ren_out[1].rl;
-    assign output_bus[223:218] = ren_out[0].al_addr;
-    assign output_bus[229:224] = ren_out[1].al_addr;
+    logic int_stall_ren;
+    logic [63:0] bbt;
+    assign ext_stall_dec = int_stall_ren;
+    assign ext_stall_fetch = int_stall_ren;
     
     
-    fetch_stage FETCH(
+    logic [$clog2(`AL_SIZE)-1:0] new_front, old_front, back;
+    logic if_recall;
+    assign if_recall = 0;
+    assign new_front = 0;
+    assign old_front = 0;
+    assign back = 0;
+
+    
+    //issue ifcs and vars
+    logic ext_stall_iss;
+    aiq_ifc issue_out[2]();
+    
+    //reg read ifcs and vars
+    logic ext_stall_reg;
+    aiq_ifc reg_out[2]();
+    reg_out_ifc reg_out_data[2]();
+    
+    
+    
+    fetch_stage FETCH_STAGE(
         .clk, .reset,
         .branch_fb,
-        .decode_fb,
-        .ext_stall(stall_fetch), .ext_flush,
-        .o_instr(instr)
+        .decode_fb(branch_fb_dec),
+        .ext_stall(ext_stall_fetch),
+        .ext_flush(ext_flush_fetch),
+        .o_instr(fetch_out),
+        .fetch_addr,
+        .fetch_addr_valid,
+        .fetched_data
     );
     
-    decode_stage DECODE(
+    decode_stage DECODE_STAGE(
         .clk, .reset,
-        .i_fetch(instr),
-        .ext_stall(stall_decode), .ext_flush,
+        .ext_stall(ext_stall_dec),
+        .ext_flush(ext_flush_dec),
+        .i_fetch(fetch_out),
         .o_decode(dec_out),
-        .o_fb(decode_fb)
+        .o_fb(branch_fb_dec)
     );
     
-    rename_stage RENAME(
+    rename_stage RENAME_STAGE(
         .clk, .reset,
-        .ext_stall, .ext_flush,
+        .ext_stall(ext_stall_ren),
+        .ext_flush(ext_flush_ren),
         .i_decode(dec_out),
         .i_branch_fb(branch_fb),
         .i_wb(wb),
         .o_renamed(ren_out),
-        .int_stall(stall_rename)
+        .bbt(bbt),
+        .int_stall(int_stall_ren)
     );
+    
+    issue_stage ISSUE_STAGE(
+        .clk, .reset,
+        .ext_stall(1'b0),
+        .i_ren(ren_out),
+        .if_recall,
+        .new_front,
+        .old_front,
+        .back,
+        .bbt,
+        .o_iq(issue_out),
+        .int_stall(ext_stall_ren)
+    );
+    
+    reg_read_stage REG_READ_STAGE(
+        .clk, .reset,
+        .ext_stall(1'b0),
+        .if_recall,
+        .new_front,
+        .old_front,
+        .back,
+        .i_arith(issue_out),
+        .i_wb(wb),
+        .o_arith(reg_out),
+        .o_regs(reg_out_data)
+    );
+    
+    arith_ex_stage ARITH_EX_STAGE(
+        .clk, .if_recall, .new_front, .old_front, .back,
+        .i_aiq(reg_out),
+        .i_regs(reg_out_data),
+        .o_wb(wb),
+        .o_fb(branch_fb)
+    );
+    
+    always_comb begin
+        case(switches) 
+            4'b0000: begin
+                 r1 = wb[0].data[3:0];
+            end
+            4'b0001: begin
+                 r1 = wb[0].data[7:4];
+            end
+            4'b0010: begin
+                 r1 = wb[0].data[11:8];
+            end
+            4'b0011: begin
+                 r1 = wb[0].data[15:12];
+            end
+            4'b0100: begin
+                 r1 = wb[0].data[19:16];
+            end
+            4'b0101: begin
+                 r1 = wb[0].data[23:20];
+            end
+            4'b0110: begin
+                 r1 = wb[0].data[27:24];
+            end
+            4'b0111: begin
+                 r1 = wb[0].data[31:28];
+            end
+            4'b1000: begin
+                r1 = wb[1].data[3:0];
+            end
+            4'b1001: begin
+                r1 = wb[1].data[7:4];
+            end
+            4'b1010: begin
+                r1 = wb[1].data[11:8];
+            end
+            4'b1011: begin
+                r1 = wb[1].data[15:12];
+            end
+            4'b1100: begin
+                r1 = wb[1].data[19:16];
+            end
+            4'b1101: begin
+                r1 = wb[1].data[23:20];
+            end
+            4'b1110: begin
+                r1 = wb[1].data[27:24];
+            end
+            4'b1111: begin
+                r1 = wb[1].data[31:28];
+            end
+        endcase
+    end
     
 endmodule
