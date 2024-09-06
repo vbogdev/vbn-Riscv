@@ -4,25 +4,25 @@ module busy_bit_table(
     input clk, input reset,
     //busify reg
     input busify [2],
-    input [5:0] busy_addr [2],
+    input [$clog2(`NUM_PR)-1:0] busy_addr [2],
     input ext_stall,
     //unbusify reg
     input done [`NUM_INSTRS_COMPLETED],
-    input [5:0] done_addr [`NUM_INSTRS_COMPLETED],
+    input [$clog2(`NUM_PR)-1:0] done_addr [`NUM_INSTRS_COMPLETED],
     //recall
     input if_recall,
-    input [63:0] recalled_list,
+    input [`NUM_PR-1:0] recalled_list,
     //output list
-    output logic [63:0] expected_list
+    output logic [`NUM_PR-1:0] expected_list
     );
     
-    logic [63:0] busy_list;
+    logic [`NUM_PR-1:0] busy_list;
     
     
 
     generate
         always_comb begin
-            for(int i = 0; i < 64; i++) begin
+            for(int i = 0; i < `NUM_PR; i++) begin
                 expected_list[i] = busy_list[i];
                 for(int j = 0; j < `NUM_INSTRS_COMPLETED; j++) begin
                     if(done[j] && (done_addr[j] == i) && ((i != busy_addr[0]) || ~busify[0]) && ((i != busy_addr[1]) || ~busify[1])) begin

@@ -54,6 +54,7 @@ module decode_stage(
         for(i = 0; i < 2; i++) begin
             always_ff @(posedge clk) begin
                 if(reset || ext_flush) begin
+                    o_decode[i].pc <= 0;
                     o_decode[i].valid <= 0;
                     o_decode[i].uses_rd <= 0;
                     o_decode[i].rd <= 0;
@@ -85,6 +86,7 @@ module decode_stage(
                     o_decode[i].amo_type <= AMO_LR;
                 end else if(~ext_stall) begin
                     o_decode[i].valid <= pipeline_regs[i].valid;
+                    o_decode[i].pc <= pipeline_regs[i].pc;
                     o_decode[i].uses_rd <= pipeline_regs[i].uses_rd;
                     o_decode[i].rd <= pipeline_regs[i].rd;
                     o_decode[i].uses_rs1 <= pipeline_regs[i].uses_rs1;

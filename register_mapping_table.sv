@@ -1,3 +1,4 @@
+
 `timescale 1ns / 1ps
 `include "riscv_core.svh"
 
@@ -12,21 +13,21 @@ module register_mapping_table(
     //recieve new mappings
     input valid_new_rd [2],
     input [4:0] rd [2],
-    input [5:0] phys_rd [2],
+    input [$clog2(`NUM_PR)-1:0] phys_rd [2],
     //if checkpointif_branch
     input if_checkpoint [2], //which instruction is checkpointed
-    output logic [5:0] checkpointed_rmt [32],
+    output logic [$clog2(`NUM_PR)-1:0] checkpointed_rmt [32],
     //if recall
     input if_recall,
-    input [5:0] recalled_rmt [32],
+    input [$clog2(`NUM_PR)-1:0] recalled_rmt [32],
     //outputs
-    output logic [5:0] phys_rs1 [2],
-    output logic [5:0] phys_rs2 [2],
-    output logic [5:0] old_rd [2],
+    output logic [$clog2(`NUM_PR)-1:0] phys_rs1 [2],
+    output logic [$clog2(`NUM_PR)-1:0] phys_rs2 [2],
+    output logic [$clog2(`NUM_PR)-1:0] old_rd [2],
     output int_stall
     );
     
-    logic [5:0] rmt [32];
+    logic [$clog2(`NUM_PR)-1:0] rmt [32];
     logic stall;
     assign stall = ext_stall || if_recall;
     assign int_stall = if_recall;
@@ -108,3 +109,4 @@ module register_mapping_table(
         end
     end
 endmodule
+

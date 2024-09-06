@@ -36,33 +36,33 @@ package riscv_pkg;
     } MemWidth;
     
     typedef enum logic [4:0] {
-        ALUCTL_ADD,
-        ALUCTL_ADDU,
-        ALUCTL_SUB,
-        ALUCTL_SUBU,
-        ALUCTL_AND,
-        ALUCTL_OR,
-        ALUCTL_XOR,
-        ALUCTL_SLT,
-        ALUCTL_SLTU,
-        ALUCTL_SLL,
-        ALUCTL_SRL,
-        ALUCTL_SRA,
-        ALUCTL_AUIPC,
-        ALUCTL_BEQ,
-        ALUCTL_BNE,
-        ALUCTL_BGE,
-        ALUCTL_BGEU,
-        ALUCTL_BLT,
-        ALUCTL_BLTU,
-        ALUCTL_MUL,
-        ALUCTL_MULH,
-        ALUCTL_MULHSU,
-        ALUCTL_MULHU,
-        ALUCTL_DIV,
-        ALUCTL_DIVU,
-        ALUCTL_REM,
-        ALUCTL_REMU
+        ALUCTL_ADD = 5'b00000,
+        ALUCTL_ADDU = 5'b00001,
+        ALUCTL_SUB = 5'b00010,
+        ALUCTL_SUBU = 5'b00011,
+        ALUCTL_AND = 5'b00100,
+        ALUCTL_OR = 5'b00101,
+        ALUCTL_XOR = 5'b00110,
+        ALUCTL_SLT = 5'b00111,
+        ALUCTL_SLTU = 5'b01000,
+        ALUCTL_SLL = 5'b01001,
+        ALUCTL_SRL = 5'b01010,
+        ALUCTL_SRA = 5'b01011,
+        ALUCTL_AUIPC = 5'b01100,
+        ALUCTL_BEQ = 5'b01101,
+        ALUCTL_BNE = 5'b01110,
+        ALUCTL_BGE = 5'b01111,
+        ALUCTL_BGEU = 5'b10000,
+        ALUCTL_BLT = 5'b10001,
+        ALUCTL_BLTU = 5'b10010,
+        ALUCTL_MUL = 5'b10011,
+        ALUCTL_MULH = 5'b10100,
+        ALUCTL_MULHSU = 5'b10101,
+        ALUCTL_MULHU = 5'b10110,
+        ALUCTL_DIV = 5'b10111,
+        ALUCTL_DIVU = 5'b11000,
+        ALUCTL_REM = 5'b11001,
+        ALUCTL_REMU = 5'b11010
     } AluCtl;
     
     typedef enum logic [2:0] {
@@ -106,13 +106,13 @@ package riscv_pkg;
     } funct7;
     
     typedef enum logic {
-        WRITE,
-        READ
+        WRITE = 0,
+        READ =1
     } MemAccessType;
     
     typedef enum logic {
-        NOT_TAKEN,
-        TAKEN
+        NOT_TAKEN = 0,
+        TAKEN = 1
     } BranchOutcome;
     
 

@@ -9,7 +9,7 @@ Module Purpose:
     -make checkpointer from ram into fifo with recall
 */
 module checkpointer #(
-    parameter LINE_SIZE = $clog2(`AL_SIZE) * 2 + 6*64 + 7 + 6 + 6 + 6*32 + $clog2(`AL_SIZE)+1+64
+    parameter LINE_SIZE = $clog2(`AL_SIZE) + $clog2(`NUM_PR) + $clog2(`NUM_PR)*32 + 64
     )(
     input clk, reset,
     input ext_stall,
@@ -22,12 +22,10 @@ module checkpointer #(
     //create checkpoint
     input if_branch [2],
     input instrs_valid [2],
-    input [5:0] free_list [64],
-    input [6:0] fl_size,
-    input [5:0] fl_front, fl_back,
+    input [$clog2(`NUM_PR)-1:0] fl_front,
     input [$clog2(`AL_SIZE)-1:0] al_front,
-    input [5:0] RMT_copy [32],
-    input [63:0] bbl,
+    input [$clog2(`NUM_PR)-1:0] RMT_copy [32],
+    input [`NUM_PR-1:0] bbt,
     //outputs
     output logic [LINE_SIZE-1:0] recalled_data,
     output logic int_stall,
@@ -45,31 +43,20 @@ module checkpointer #(
     
     logic [$clog2(`AL_SIZE)-1:0] al_addresses [`NUM_CHECKPOINTS];
     
-    assign din[390:384] = fl_size;
-    assign din[396:391] = fl_front;
-    assign din[402:397] = fl_back;
-    assign din[$clog2(`AL_SIZE)-1+403:403] = al_front;
-    assign din[$clog2(`AL_SIZE)-1+403+$clog2(`AL_SIZE):$clog2(`AL_SIZE)+403] = 0;//al_back; <-- YOU SHOULDNT NEED THE BACK OF THE ACTIVE LIST
-    assign din[$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)+$clog2(`AL_SIZE):$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)] = 0;
-    localparam t = $clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)+$clog2(`AL_SIZE)+1;
-    assign din[t+32*6+63:t+32*6] = bbl;
+    assign din[$clog2(`NUM_PR)-1:0] = fl_front;
+    assign din[$clog2(`AL_SIZE)-1+$clog2(`NUM_PR):$clog2(`NUM_PR)] = al_front;
+    assign din[$clog2(`AL_SIZE)+$clog2(`NUM_PR)+`NUM_PR-1:$clog2(`AL_SIZE)+$clog2(`NUM_PR)] = bbt;
     genvar i;
     generate
-        for(i = 0; i < 64; i++) begin
-            assign din[i*6+:6] = free_list[i];
-        end
         for(i = 0; i < 32; i++) begin
-            //assign din[5*(i+1)+$clog2(`AL_SIZE)-1+403+$clog2(`AL_SIZE):i+$clog2(`AL_SIZE)+403+$clog2(`AL_SIZE)] = RMT_copy[i];
-            assign din[i*6+t+:6] = RMT_copy[i];
-        end
-        
+            assign din[i*$clog2(`NUM_PR)+64+$clog2(`AL_SIZE)+$clog2(`NUM_PR)+:$clog2(`NUM_PR)] = RMT_copy[i];
+        end        
     endgenerate
     
     
     logic stall;
     logic we;
-    assign stall = ext_stall || (if_branch[0] && instrs_valid[0] && if_branch[1] && instrs_valid[1]) || 
-            ((num_checkpoints + if_branch[0] && instrs_valid[0] + if_branch[1] && instrs_valid[1]) >= `NUM_CHECKPOINTS);
+    
     assign we = ((if_branch[0] && instrs_valid[0]) || (if_branch[1] && instrs_valid[1]));
     assign int_stall = (if_branch[0] && instrs_valid[0] && if_branch[1] && instrs_valid[1]) || 
             ((num_checkpoints + if_branch[0] && instrs_valid[0] + if_branch[1] && instrs_valid[1]) >= `NUM_CHECKPOINTS);
@@ -99,7 +86,7 @@ module checkpointer #(
         end else if(recall_checkpoint) begin
             checkpoint_front <= recall_id;
             num_checkpoints <= (checkpoint_front > checkpoint_back) ? (checkpoint_front - checkpoint_back) : (checkpoint_front - checkpoint_back + `NUM_CHECKPOINTS);
-        end else if(we && ~stall) begin
+        end else if(we && ~int_stall && ~ext_stall) begin
             for(int i = 0; i < `NUM_BRANCHES_RESOLVED; i++) begin
                 if((checkpoint_front != validated_id[i]) && validate[i]) begin
                     checkpoint_validated[validated_id[i]] <= 1;

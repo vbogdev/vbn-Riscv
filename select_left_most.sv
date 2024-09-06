@@ -1,13 +1,14 @@
 `timescale 1ns / 1ps
 
+//ACTUALLY RETURNS THE RIGHT MOST INDEX
 module select_left_most #(
     parameter SIZE = 8
     )(
-    input input_mask [SIZE],
-    output [$clog2(SIZE)-1:0] o_idx
+    input [SIZE-1:0] input_mask,
+    output logic [$clog2(SIZE)-1:0] o_idx
     );
     
-    logic [SIZE-1:0] ready_mask;
+    /*logic [SIZE-1:0] ready_mask;
     logic [SIZE-1:0] enc_val;
     genvar j;
     generate
@@ -17,5 +18,13 @@ module select_left_most #(
         end
     endgenerate
     assign enc_val = ~ready_mask + 1'b1;
-    encoder #(.SIZE(SIZE)) ENCODER (.in(enc_val), .out(o_idx));
+    encoder #(.SIZE(SIZE)) ENCODER (.in(enc_val), .out(o_idx));*/
+    always_comb begin
+        o_idx = SIZE-1;
+        for(int i = SIZE-1; i >= 0; i--) begin
+            if(input_mask[i]) begin
+                o_idx = i;
+            end
+        end
+    end
 endmodule

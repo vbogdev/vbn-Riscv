@@ -210,6 +210,7 @@ module decoder(
     
     always_comb begin
         //default values for a NOP i guess
+        o_dec.pc = i_pc;
         o_dec.uses_rd = 0;
         o_dec.rd = 0;
         o_dec.uses_rs1 = 0;

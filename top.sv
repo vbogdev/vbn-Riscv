@@ -4,24 +4,34 @@
 module top(
     input reset,
     input sys_clk_pin,
+    input sys_clk_2,
     input [3:0] switches,
     input set,
     input [9:0] inputs,
-    output logic [3:0] r1
+    output logic [15:0] r1
     );
+
     
-    logic clk, locked;
-    /*clk_100_mhz CLK_MANAGER(
-        .clk_out1(clk), 
-        .reset(reset), // input reset
-        .locked(locked),       // output locked
-        .clk_in(sys_clk_pin)      // input clk_in
+    logic clk, f_clk;
+
+    
+    /*main_clock CLK_MANAGER(
+        .s_clk(clk),
+        .f_clk,
+        .reset,
+        .clk_in1(sys_clk_pin)
     );*/
-    assign clk = sys_clk_pin;
+    assign clk = sys_clk_2;
+    assign f_clk = sys_clk_pin;
+    
+    
+    //assign clk = sys_clk_pin;
     
     logic [159:0] reg_inputs, direct_inputs;
     always_ff @(posedge clk) begin
-        if(set) begin
+        if(reset) begin
+            direct_inputs <= 0;
+        end else if(set) begin
             direct_inputs <= reg_inputs;
         end 
         
@@ -47,6 +57,19 @@ module top(
     
     //fetch ifcs and vars
     branch_fb_ifc branch_fb[2]();
+    assign branch_fb[0].if_branch = 0;
+    assign branch_fb[0].if_prediction_correct = 1;
+    assign branch_fb[0].outcome = NOT_TAKEN;
+    assign branch_fb[0].cp_addr = 0;
+    assign branch_fb[0].branch_pc = 0;
+    assign branch_fb[0].new_pc = 0;
+    assign branch_fb[1].if_branch = 0;
+    assign branch_fb[1].if_prediction_correct = 1;
+    assign branch_fb[1].outcome = NOT_TAKEN;
+    assign branch_fb[1].cp_addr = 0;
+    assign branch_fb[1].branch_pc = 0;
+    assign branch_fb[1].new_pc = 0;
+    
     branch_fb_decode_ifc branch_fb_dec();
     logic ext_stall_fetch, ext_flush_fetch;
     assign ext_flush_fetch = 0;
@@ -68,10 +91,13 @@ module top(
     logic ext_stall_ren, ext_flush_ren;
     //assign ext_stall_ren = 0;
     assign ext_flush_ren = 0;
-    wb_ifc wb[2]();
+    wb_ifc wb[4]();
+    wb_ifc wb_s1[4]();
+    wb_ifc wb_s2[4]();
     rename_out_ifc ren_out[2]();
     logic int_stall_ren;
-    logic [63:0] bbt;
+    logic [$clog2(`AL_SIZE)-1:0] al_front_ptr, al_back_ptr;
+    logic [$clog2(`AL_SIZE)-1:0] oldest_branch_al_addr;
     assign ext_stall_dec = int_stall_ren;
     assign ext_stall_fetch = int_stall_ren;
     
@@ -86,12 +112,51 @@ module top(
     
     //issue ifcs and vars
     logic ext_stall_iss;
-    aiq_ifc issue_out[2]();
+    aiq_ifc aiq_issue_out[2]();
+    miq_ifc miq_issue_out[2]();
     
-    //reg read ifcs and vars
+    
+    //reg file ifcs and vars
     logic ext_stall_reg;
-    aiq_ifc reg_out[2]();
-    reg_out_ifc reg_out_data[2]();
+    aiq_ifc aiq_reg_out[2]();
+    miq_ifc miq_reg_out[2]();
+    logic [31:0] reg_out [8];
+    
+    
+    //execute stage vars
+    logic [31:0] reg_in_arith [4];
+    logic [31:0] reg_in_mem [4];
+    wb_ifc arith_wb[2]();
+    wb_ifc mem_wb[2]();
+    
+    assign wb[0].valid = arith_wb[0].valid;
+    assign wb[0].al_idx = arith_wb[0].al_idx;
+    assign wb[0].data = arith_wb[0].data;
+    assign wb[0].rd = arith_wb[0].rd;
+    assign wb[0].uses_rd = arith_wb[0].uses_rd;
+    assign wb[1].valid = arith_wb[1].valid;
+    assign wb[1].al_idx = arith_wb[1].al_idx;
+    assign wb[1].data = arith_wb[1].data;
+    assign wb[1].rd = arith_wb[1].rd;
+    assign wb[1].uses_rd = arith_wb[1].uses_rd;
+    assign wb[2].valid = mem_wb[0].valid;
+    assign wb[2].al_idx = mem_wb[0].al_idx;
+    assign wb[2].data = mem_wb[0].data;
+    assign wb[2].rd = mem_wb[0].rd;
+    assign wb[2].uses_rd = mem_wb[0].uses_rd;
+    assign wb[3].valid = mem_wb[1].valid;
+    assign wb[3].al_idx = mem_wb[1].al_idx;
+    assign wb[3].data = mem_wb[1].data;
+    assign wb[3].rd = mem_wb[1].rd;
+    assign wb[3].uses_rd = mem_wb[1].uses_rd;
+    assign reg_in_arith[0] = reg_out[0];
+    assign reg_in_arith[1] = reg_out[1];
+    assign reg_in_arith[2] = reg_out[2];
+    assign reg_in_arith[3] = reg_out[3];
+    assign reg_in_mem[0] = reg_out[4];
+    assign reg_in_mem[1] = reg_out[5];
+    assign reg_in_mem[2] = reg_out[6];
+    assign reg_in_mem[3] = reg_out[7];
     
     
     
@@ -122,96 +187,84 @@ module top(
         .ext_flush(ext_flush_ren),
         .i_decode(dec_out),
         .i_branch_fb(branch_fb),
-        .i_wb(wb),
+        .i_wb(wb_s2),
         .o_renamed(ren_out),
-        .bbt(bbt),
-        .int_stall(int_stall_ren)
+        .oldest_branch_al_addr,
+        .int_stall(int_stall_ren),
+        .al_front_ptr_reg(al_front_ptr),
+        .al_back_ptr_reg(al_back_ptr)
     );
+    
     
     issue_stage ISSUE_STAGE(
         .clk, .reset,
-        .ext_stall(1'b0),
+        .ext_stall(ext_stall_reg),
         .i_ren(ren_out),
         .if_recall,
         .new_front,
         .old_front,
         .back,
-        .bbt,
-        .o_iq(issue_out),
+        .i_wb(wb_s2),
+        //.bbt,
+        .o_iq(aiq_issue_out),
+        .o_miq(miq_issue_out),
+        .oldest_branch_al_addr,
         .int_stall(ext_stall_ren)
     );
-    
-    reg_read_stage REG_READ_STAGE(
-        .clk, .reset,
-        .ext_stall(1'b0),
-        .if_recall,
-        .new_front,
-        .old_front,
-        .back,
-        .i_arith(issue_out),
-        .i_wb(wb),
-        .o_arith(reg_out),
-        .o_regs(reg_out_data)
+
+    fast_reg_file FRF(
+        .clk, .f_clk, .reset, .ext_stall(1'b0),
+        .if_recall, .new_front, .old_front, .back,
+        .i_wb(wb_s1),
+        .i_aiq(aiq_issue_out),
+        .i_miq(miq_issue_out),
+        .o_regs(reg_out),
+        .o_aiq(aiq_reg_out),
+        .o_miq(miq_reg_out),
+        .int_stall(ext_stall_reg)
     );
+    
     
     arith_ex_stage ARITH_EX_STAGE(
         .clk, .if_recall, .new_front, .old_front, .back,
-        .i_aiq(reg_out),
-        .i_regs(reg_out_data),
-        .o_wb(wb),
+        .i_aiq(aiq_reg_out),
+        .i_regs(reg_in_arith),
+        .o_wb(arith_wb),
         .o_fb(branch_fb)
+    );
+    
+    t_mem_stage MEM_STAGE(
+        .clk, .if_recall, .new_front, .old_front, .back,
+        .i_miq(miq_reg_out),
+        .i_regs(reg_in_mem),
+        .o_wb(mem_wb)
+    );
+    
+    write_back_stage WRITE_BACK_STAGE(
+        .clk, .if_recall, .new_front, .old_front, .back,
+        .i_wb(wb),
+        .o_wb_s1(wb_s1),
+        .o_wb_s2(wb_s2)
     );
     
     always_comb begin
         case(switches) 
-            4'b0000: begin
-                 r1 = wb[0].data[3:0];
-            end
-            4'b0001: begin
-                 r1 = wb[0].data[7:4];
-            end
-            4'b0010: begin
-                 r1 = wb[0].data[11:8];
-            end
-            4'b0011: begin
-                 r1 = wb[0].data[15:12];
-            end
-            4'b0100: begin
-                 r1 = wb[0].data[19:16];
-            end
-            4'b0101: begin
-                 r1 = wb[0].data[23:20];
-            end
-            4'b0110: begin
-                 r1 = wb[0].data[27:24];
-            end
-            4'b0111: begin
-                 r1 = wb[0].data[31:28];
-            end
-            4'b1000: begin
-                r1 = wb[1].data[3:0];
-            end
-            4'b1001: begin
-                r1 = wb[1].data[7:4];
-            end
-            4'b1010: begin
-                r1 = wb[1].data[11:8];
-            end
-            4'b1011: begin
-                r1 = wb[1].data[15:12];
-            end
-            4'b1100: begin
-                r1 = wb[1].data[19:16];
-            end
-            4'b1101: begin
-                r1 = wb[1].data[23:20];
-            end
-            4'b1110: begin
-                r1 = wb[1].data[27:24];
-            end
-            4'b1111: begin
-                r1 = wb[1].data[31:28];
-            end
+            4'b0000: r1 = wb[0].data[15:0];
+            4'b0000: r1 = wb[0].data[31:16];
+            4'b0000: r1 = wb[1].data[15:0];
+            4'b0000: r1 = wb[1].data[31:16];
+            4'b0000: r1 = wb[2].data[15:0];
+            4'b0000: r1 = wb[2].data[31:16];
+            4'b0000: r1 = wb[3].data[15:0];
+            4'b0000: r1 = wb[3].data[31:16];
+            4'b0000: r1 = wb[0].data[15:0];
+            4'b0000: r1 = wb[0].data[31:16];
+            4'b0000: r1 = wb[0].data[15:0];
+            4'b0000: r1 = wb[0].data[31:16];
+            4'b0000: r1 = wb[0].data[15:0];
+            4'b0000: r1 = wb[0].data[31:16];
+            4'b0000: r1 = wb[0].data[15:0];
+            4'b0000: r1 = wb[0].data[31:16];
         endcase
     end
     

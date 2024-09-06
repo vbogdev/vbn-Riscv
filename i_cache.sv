@@ -15,7 +15,8 @@ module i_cache #(
     output logic [31:0] read_instr [2],
     output logic valid_read [2],
     output logic miss [2],
-    output logic int_stall
+    output logic int_stall,
+    output logic [`ADDR_WIDTH-1:0] prev_read_addr [2]
     );
     
     localparam TAG_SIZE = `ADDR_WIDTH - 2 - $clog2(LINE_SIZE) - $clog2(DEPTH);
@@ -41,7 +42,7 @@ module i_cache #(
         num_reads = read_addr_valid[0] + read_addr_valid[1];
         num_writes = fetch_addr_valid;
         num_ports_needed = num_reads + num_writes;
-        if(num_ports_needed > 2) begin
+        if((num_ports_needed > 2) || miss[0] || miss[1]) begin
             int_stall = 1;
         end else begin
             int_stall = 0;
@@ -172,32 +173,48 @@ module i_cache #(
     
      
     always_ff @(posedge clk) begin
-        if(compare_tags_s2[0] && fetch_forwarding_valid && (forward_tag == s2_tags[0]) && (s2_idxs[0] == forward_idx)) begin
+        if(reset) begin
+            miss[0] <= 0;
+            read_instr[0] <= 'h23;
+            prev_read_addr[0] <= 0;
+        end else if(compare_tags_s2[0] && fetch_forwarding_valid && (forward_tag == s2_tags[0]) && (s2_idxs[0] == forward_idx)) begin
             miss[0] <= 0;
             read_instr[0] <= forward_line_broken[getOffSet(fetch_forwarding_addr)];
+            prev_read_addr[0] <= fetch_forwarding_addr;
         end else if(compare_tags_s2[0] && (access_data[0][TOTAL_LINE_SIZE-1] && (data_tags[0] == s2_tags[0])) && (s2_idxs[0] == getIdx(already_read_addr[0]))) begin
             miss[0] <= 0;
             read_instr[0] <= line1[getOffSet(already_read_addr[0])];
+            prev_read_addr[0] <= already_read_addr[0];
         end else if (~compare_tags_s2[0]) begin
             miss[0] <= 0;
             read_instr[0] <= 0;
+            prev_read_addr[0] <= 0;
         end else begin
             miss[0] <= 1;
             read_instr[0] <= 0;
+            prev_read_addr[0] <= 0;
         end
         
-        if(compare_tags_s2[1] && fetch_forwarding_valid && (forward_tag == s2_tags[1]) && (s2_idxs[1] == forward_idx)) begin
+        if(reset) begin
+            miss[1] <= 0;
+            read_instr[1] <= 'h23;
+            prev_read_addr[1] <= 'h23;
+        end else if(compare_tags_s2[1] && fetch_forwarding_valid && (forward_tag == s2_tags[1]) && (s2_idxs[1] == forward_idx)) begin
             miss[1] <= 0;
             read_instr[1] <= forward_line_broken[getOffSet(fetch_forwarding_addr)];
+            prev_read_addr[1] <= fetch_forwarding_addr;
         end else if(compare_tags_s2[1] && (access_data[1][TOTAL_LINE_SIZE-1] && (data_tags[1] == s2_tags[1])) && (s2_idxs[1] == getIdx(already_read_addr[1]))) begin
             miss[1] <= 0;
             read_instr[1] <= line2[getOffSet(already_read_addr[1])];
+            prev_read_addr[1] <= already_read_addr[1];
         end else if(~compare_tags_s2[1]) begin
             miss[1] <= 0;
             read_instr[1] <= 0;
+            prev_read_addr[1] <= 0;
         end else begin
             miss[1] <= 1;
             read_instr[1] <= 0;
+            prev_read_addr[1] <= 0;
         end
     end
     
@@ -205,14 +222,14 @@ module i_cache #(
         forward_tag = getTag(fetch_forwarding_addr);
         forward_idx = getIdx(fetch_forwarding_addr);
         
-        valid_read[0] = compare_tags_s2[0] && ~ext_flush;
+        valid_read[0] = (compare_tags_s2[0] && ~ext_flush) || reset;
     
         s2_tags[0] = getTag(already_read_addr[0]);
         s2_idxs[0] = getIdx(already_read_addr[0]);
         data_tags[0] = access_data[0][TOTAL_LINE_SIZE-2:TOTAL_LINE_SIZE-1-TAG_SIZE];
         
         
-        valid_read[1] = compare_tags_s2[1] && ~ext_flush;
+        valid_read[1] = (compare_tags_s2[1] && ~ext_flush) || reset;
         s2_tags[1] = getTag(already_read_addr[1]);
         s2_idxs[1] = getIdx(already_read_addr[1]);
         data_tags[1] = access_data[1][TOTAL_LINE_SIZE-2:TOTAL_LINE_SIZE-1-TAG_SIZE];
