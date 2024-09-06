@@ -6,10 +6,11 @@ Designed for Arty s25 dev board for 100 MHz clock, must be under 14k LUTs, prefe
 Stages:
   1. Fetch 1: predict new pc
   2. Fetch 2: access i-cache
-  3. Decode
-  4. Rename
-  5. Issue
-  6. Register read
-  7. Execute (might be multiple ex stages)
-  8. Mem access (if applicable, might be more mem stages)
-  9. Write back
+  3. Fetch 3: i-cache tag comparison
+  4. Decode
+  5. Rename
+  6. Issue
+  7. Register read
+  8. Execute (might be multiple ex stages)
+  9. Mem access (if applicable, might be more mem stages)
+  10. Write back
