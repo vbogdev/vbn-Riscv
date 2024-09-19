@@ -114,13 +114,27 @@ module in_order_iq #(
     
     
     logic we;
-    assign we = ~int_stall && i_ren.valid && (i_ren.is_mem_access || i_ren.accesses_csr) && if_recall;
+    assign we = ~int_stall && i_ren.valid && (i_ren.is_mem_access || i_ren.accesses_csr) && ~if_recall;
+    
+    /*********************IMPORTANT NOTE*************************
+    This latch is needed because access addr is in combinational logic, not
+    sequential logic. As a result, the synthesis tool makes it so t_dout cannot 
+    read dout in time, so a latch will read dout ahead of time, then stop reading
+    it, then pass its value to t_dout in a always_ff block
+    *************************************************************/
+    logic [payload_width-1:0] outgoing_latch;
+    always_comb begin
+        if(clk) begin
+            outgoing_latch = dout;
+        end
+    end
     
     //if top instruction is ready, prep it to leave
     always_ff @(negedge clk) begin
         if(back_ready && instr_ready[back_ptr] && valid[back_ptr]) begin
             //valid[back_ptr] <= 0;
             //back_ptr <= back_ptr + 1;
+            //t_dout <= outgoing_latch;
             t_dout <= dout;
             outgoing_instr <= 1;
         end else begin
@@ -129,8 +143,11 @@ module in_order_iq #(
     end
     
     logic [$clog2(SIZE)-1:0] access_addr;
-    assign access_addr = clk ? back_ptr : front_ptr;
+    assign access_addr = clk ? front_ptr : back_ptr;
     
+    
+    
+
     distributed_ram #(
         .WIDTH(payload_width),
         .DEPTH(SIZE)
@@ -144,10 +161,12 @@ module in_order_iq #(
     
     
     always_ff @(posedge clk) begin
+    
         if(reset) begin
             front_ptr <= 0;
             back_ptr <= 0;
             valid <= 0;
+            o_miq.valid <= 0;
         end else begin
             //handle moving front pointer (incoming instruction)
             if(if_recall) begin
@@ -168,9 +187,8 @@ module in_order_iq #(
                     al_addrs[front_ptr] <= i_ren.al_addr;
                 end
             end
-            
             //handle moving back pointer (outgoing instruction)
-            if(outgoing_instr && ~flush_mask[back_ptr]) begin
+            if(outgoing_instr && ~flush_mask[back_ptr] && valid[back_ptr]) begin
                 back_ptr <= back_ptr + 1;
                 valid[back_ptr] <= 0;
                 //handle outgoing data stuff
@@ -185,9 +203,24 @@ module in_order_iq #(
                 o_miq.uses_imm <= t_dout[`ADDR_WIDTH+$clog2(`NUM_PR)+33];
                 o_miq.imm <= t_dout[`ADDR_WIDTH+$clog2(`NUM_PR)+1+:32];
                 o_miq.is_mem_access <= t_dout[`ADDR_WIDTH+$clog2(`NUM_PR)+34];
-                o_miq.mem_access_type <= t_dout[`ADDR_WIDTH+$clog2(`NUM_PR)+34];
+                o_miq.mem_access_type <= t_dout[`ADDR_WIDTH+$clog2(`NUM_PR)+35];
                 o_miq.width <= t_dout[`ADDR_WIDTH+$clog2(`NUM_PR)+36+:3];
                 o_miq.al_addr <= al_addrs[back_ptr];
+            end else begin
+                o_miq.valid <= 0;
+                o_miq.pc <= 0;
+                o_miq.rs1 <= 0;
+                o_miq.rs2 <= 0;
+                o_miq.rd <= 0;
+                o_miq.uses_rs1 <= 0;
+                o_miq.uses_rs2 <= 0;
+                o_miq.uses_rd <= 0;
+                o_miq.uses_imm <= 0;
+                o_miq.imm <= 0;
+                o_miq.is_mem_access <= 0;
+                o_miq.mem_access_type <= 0;
+                o_miq.width <= 0;
+                o_miq.al_addr <= 0;
             end
         end
     end
@@ -208,7 +241,7 @@ module in_order_iq #(
         //handle rs1
         for(j = 0; j < SIZE; j++) begin
             always_ff @(posedge clk) begin
-                if(we && (back_ptr == j)) begin
+                if(we && (front_ptr == j)) begin
                     rs1_ready[j] <= i_ren.rs1_ready || incoming_overwrite_ready[0];
                 end else if(valid[j] && uses_rs1[j] && ((i_wb[0].valid && i_wb[0].uses_rd && (i_wb[0].rd == rs1[j])) || (i_wb[1].valid && i_wb[1].uses_rd 
                     && (i_wb[1].rd == rs1[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs1[j])) || (i_wb[3].valid && i_wb[3].uses_rd && 
@@ -219,7 +252,7 @@ module in_order_iq #(
             end
             
             always_ff @(posedge clk) begin
-                if(we && (back_ptr == j)) begin
+                if(we && (front_ptr == j)) begin
                     rs2_ready[j] <= i_ren.rs2_ready || incoming_overwrite_ready[1];
                 end else if(valid[j] && uses_rs2[j] && ((i_wb[0].valid && i_wb[0].uses_rd && (i_wb[0].rd == rs2[j])) || (i_wb[1].valid && i_wb[1].uses_rd 
                     && (i_wb[1].rd == rs2[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs2[j])) ||  (i_wb[3].valid && i_wb[3].uses_rd && 

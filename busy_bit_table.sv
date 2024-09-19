@@ -46,12 +46,20 @@ module busy_bit_table(
         end else if(if_recall) begin
             busy_list <= recalled_list;
         end else if(~ext_stall) begin
-            for(int i = 0; i < 2; i++) begin
+            /*for(int i = 0; i < 2; i++) begin
                 if(busify[i]) begin
                     busy_list[busy_addr[i]] <= 1;
                 end
-            end
+            end*/
             
+            if(busify[0] && busify[1]) begin
+                busy_list[busy_addr[0]] <= 1;
+                busy_list[busy_addr[1]] <= 1;
+            end else if (busify[0]) begin
+                busy_list[busy_addr[0]] <= 1;
+            end else if (busify[1]) begin
+                busy_list[busy_addr[0]] <= 1;
+            end
         end
     end
 endmodule

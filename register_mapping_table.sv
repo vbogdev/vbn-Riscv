@@ -104,7 +104,7 @@ module register_mapping_table(
             end else if(valid_new_rd[0] && valid_instr[0]) begin
                 rmt[rd[0]] <= phys_rd[0];
             end else if(valid_new_rd[1] && valid_instr[1]) begin
-                rmt[rd[1]] <= phys_rd[1];
+                rmt[rd[1]] <= phys_rd[0];
             end
         end
     end

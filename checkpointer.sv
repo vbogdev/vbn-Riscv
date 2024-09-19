@@ -63,7 +63,7 @@ module checkpointer #(
     
     logic [$clog2(`NUM_CHECKPOINTS)-1:0] addr;
     assign addr = recall_checkpoint ? recall_id : checkpoint_front;
-    
+        
     distributed_ram #(
         .WIDTH(LINE_SIZE),
         .DEPTH(`NUM_CHECKPOINTS)
@@ -85,8 +85,9 @@ module checkpointer #(
             num_checkpoints <= 0;
         end else if(recall_checkpoint) begin
             checkpoint_front <= recall_id;
-            num_checkpoints <= (checkpoint_front > checkpoint_back) ? (checkpoint_front - checkpoint_back) : (checkpoint_front - checkpoint_back + `NUM_CHECKPOINTS);
+            num_checkpoints <= (recall_id >= checkpoint_back) ? (recall_id - checkpoint_back) : (recall_id - checkpoint_back + `NUM_CHECKPOINTS);
         end else if(we && ~int_stall && ~ext_stall) begin
+            checkpoint_front <= checkpoint_front + 1;
             for(int i = 0; i < `NUM_BRANCHES_RESOLVED; i++) begin
                 if((checkpoint_front != validated_id[i]) && validate[i]) begin
                     checkpoint_validated[validated_id[i]] <= 1;

@@ -10,6 +10,7 @@ module rename_stage(
     wb_ifc.in i_wb [4],
     rename_out_ifc.out o_renamed [2],
     output logic [$clog2(`AL_SIZE)-1:0] oldest_branch_al_addr,
+    output logic no_checkpoints,
     output logic int_stall,
     output logic [$clog2(`AL_SIZE)-1:0] al_front_ptr_reg, al_back_ptr_reg
     );
@@ -94,7 +95,6 @@ module rename_stage(
     logic [$clog2(`NUM_PR)-1:0] recalled_RMT_copy [32];
     logic [`NUM_PR-1:0] recalled_bbt;
     logic [$clog2(`AL_SIZE)-1:0] oldest_al;
-    logic no_checkpoints;
     logic [$clog2(`NUM_CHECKPOINTS)-1:0] cp_addr;
     assign if_recall = i_branch_fb[0].if_branch && ~i_branch_fb[0].if_prediction_correct;
     assign recalled_id = i_branch_fb[0].cp_addr;
@@ -270,10 +270,24 @@ module rename_stage(
         .cp_addr(cp_addr)
     );
     
+    logic [$clog2(`NUM_PR)-1:0] allocated_regs_reordered [2];
+    always_comb begin
+        if(i_decode[0].uses_rd && i_decode[1].uses_rd) begin
+            allocated_regs_reordered[0] = allocated_regs[0];
+            allocated_regs_reordered[1] = allocated_regs[1];
+        end else if(i_decode[0].uses_rd) begin
+            allocated_regs_reordered[0] = allocated_regs[0];
+            allocated_regs_reordered[1] = 0;
+        end else if(i_decode[1].uses_rd) begin
+            allocated_regs_reordered[1] = allocated_regs[0];
+            allocated_regs_reordered[0] = 0;
+        end
+    end
+    
         generate
         for(i = 0; i < 2; i++) begin
             always_ff @(posedge clk) begin
-                if(reset) begin
+                if(reset || ~psm_valid_instr[i] || int_stall) begin
                     o_renamed[i].valid <= 0;
                     o_renamed[i].pc <= 0;
                     o_renamed[i].uses_rd <= 0;
@@ -312,14 +326,14 @@ module rename_stage(
                     o_renamed[i].valid <= psm_valid_instr[i];
                     o_renamed[i].pc <= i_decode[i].pc;
                     o_renamed[i].uses_rd <= i_decode[i].uses_rd;
-                    o_renamed[i].rd <= allocated_regs[i];
+                    o_renamed[i].rd <= allocated_regs_reordered[i];
                     o_renamed[i].uses_rs1 <= i_decode[i].uses_rs1;
                     o_renamed[i].rs1 <= phys_rs1[i];
                     o_renamed[i].uses_rs2 <= i_decode[i].uses_rs2;
                     o_renamed[i].rs2 <= phys_rs2[i];
                     o_renamed[i].uses_imm <= i_decode[i].uses_imm;
-                    o_renamed[i].rs1_ready <= expected_bbt[phys_rs1[i]];
-                    o_renamed[i].rs2_ready <= expected_bbt[phys_rs2[i]];
+                    o_renamed[i].rs1_ready <= ~expected_bbt[phys_rs1[i]];
+                    o_renamed[i].rs2_ready <= ~expected_bbt[phys_rs2[i]];
                     o_renamed[i].imm <= i_decode[i].imm;
                     o_renamed[i].alu_operation <= i_decode[i].alu_operation;
                     o_renamed[i].is_fp <= i_decode[i].is_fp;

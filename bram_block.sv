@@ -14,7 +14,7 @@ module bram_block #(
     
     
     logic [WIDTH-1:0] mem [DEPTH];
-    
+    initial $display("%m");
     genvar i;
     generate
         for(i = 0; i < NUM_PORTS; i++) begin

@@ -34,7 +34,7 @@ module temp_i_cache#(
                 end else if(~ext_stall) begin
                     if(read_addr_valid[i]) begin
                         valid_read[i] <= read_addr_valid[i];
-                        read_instr[i] <= mem[read_addr[i]];
+                        read_instr[i] <= mem[read_addr[i]/4];
                         prev_read_addr[i] <= read_addr[i];
                     end else begin
                         valid_read[i] <= 0;

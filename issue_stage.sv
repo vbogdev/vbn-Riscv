@@ -11,6 +11,7 @@ module issue_stage(
     input if_recall,
     input [$clog2(`AL_SIZE)-1:0] new_front, old_front, back,
     input [$clog2(`AL_SIZE)-1:0] oldest_branch_al_addr,
+    input no_checkpoints,
     //free list
     aiq_ifc.out o_iq [2],
     //ziq_ifc.out o_ziq [2],
@@ -33,7 +34,7 @@ module issue_stage(
     );
     
     logic ioiq_stall;
-    banked_in_order_iq IOIQ(
+    inorder_issue_queue IOIQ(
         .clk, .reset,
         .ext_stall,
         .i_ren,
@@ -43,6 +44,7 @@ module issue_stage(
         .old_front,
         .back,
         .oldest_branch_al_addr,
+        .no_branches(no_checkpoints),
         .o_miq,
         .int_stall(ioiq_stall)
     );

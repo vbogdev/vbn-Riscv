@@ -44,7 +44,7 @@ module fast_reg_file(
     
     logic [1:0] state;
 
-    
+
     genvar i;
     generate
 
@@ -58,6 +58,17 @@ module fast_reg_file(
             assign read_addr[2*i+1] = i_aiq[i].rs2;
             assign read_addr[2*i+4] = i_miq[i].rs1;
             assign read_addr[2*i+5] = i_miq[i].rs2;
+        end
+        
+        for(i = 0; i < 4; i++) begin : gen_banks
+             bram_block #(.WIDTH(32), .DEPTH(`NUM_PR)) BRAM_BLOCK(
+                .clk(f_clk),
+                .reset,
+                .addr(addr[i]),
+                .we(we[i]),
+                .din(din[i]),
+                .dout(dout[i])
+            );
         end
     
         for(i = 0; i < 4; i++) begin
@@ -86,14 +97,6 @@ module fast_reg_file(
                 end
             end
         
-            bram_block #(.WIDTH(32), .DEPTH(`NUM_PR)) BRAM_BLOCK(
-                .clk(f_clk),
-                .reset,
-                .addr(addr[i]),
-                .we(we[i]),
-                .din(din[i]),
-                .dout(dout[i])
-            );
             
             //from clk to 2nd posedge of f_clk, giving 6.666ns for read addresses to be recieved from iq
             always_ff @(posedge f_clk) begin
@@ -112,10 +115,19 @@ module fast_reg_file(
         
     endgenerate
     
+    task update_reg(input [$clog2(`NUM_PR)-1:0] addr, input [31:0] val);
+        top_tb.DUT.FRF.gen_banks[0].BRAM_BLOCK.mem[addr] = val;
+        top_tb.DUT.FRF.gen_banks[1].BRAM_BLOCK.mem[addr] = val;
+        top_tb.DUT.FRF.gen_banks[2].BRAM_BLOCK.mem[addr] = val;
+        top_tb.DUT.FRF.gen_banks[3].BRAM_BLOCK.mem[addr] = val;
+    endtask
     
+    
+    logic startup;
     always_ff @(posedge f_clk) begin
-        if(reset) begin
+        if(reset && startup) begin
             state <= 0;
+            startup <= 0;
         end else begin
             if(state == 0) begin
                 state <= 1;
@@ -134,7 +146,7 @@ module fast_reg_file(
                     o_aiq[i].valid <= 0;
                     o_miq[i].valid <= 0;
                 end else if(~ext_stall) begin
-                    o_aiq[i].valid <= i_aiq[i].valid && ~flush_mask[i];
+                    o_aiq[i].valid <= i_aiq[i].valid && ((~flush_mask[i] && if_recall) || ~if_recall);
                     o_aiq[i].pc <= i_aiq[i].pc;
                     o_aiq[i].rd <= i_aiq[i].rd;
                     o_aiq[i].uses_rd <= i_aiq[i].uses_rd;

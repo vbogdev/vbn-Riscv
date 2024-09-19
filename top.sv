@@ -21,6 +21,8 @@ module top(
         .reset,
         .clk_in1(sys_clk_pin)
     );*/
+    
+    //for testing
     assign clk = sys_clk_2;
     assign f_clk = sys_clk_pin;
     
@@ -72,7 +74,7 @@ module top(
     
     branch_fb_decode_ifc branch_fb_dec();
     logic ext_stall_fetch, ext_flush_fetch;
-    assign ext_flush_fetch = 0;
+    assign ext_flush_fetch = if_recall;
     fetch_out_ifc fetch_out[2]();
     logic [31:0] fetch_addr;
     logic fetch_addr_valid;
@@ -84,13 +86,13 @@ module top(
     
     //decode ifcs and vars
     logic ext_stall_dec, ext_flush_dec;
-    assign ext_flush_dec = 0;
+    assign ext_flush_dec = if_recall;
     decode_out_ifc dec_out[2]();
     
     //rename ifcs and vars
     logic ext_stall_ren, ext_flush_ren;
     //assign ext_stall_ren = 0;
-    assign ext_flush_ren = 0;
+    assign ext_flush_ren = if_recall;
     wb_ifc wb[4]();
     wb_ifc wb_s1[4]();
     wb_ifc wb_s2[4]();
@@ -98,16 +100,17 @@ module top(
     logic int_stall_ren;
     logic [$clog2(`AL_SIZE)-1:0] al_front_ptr, al_back_ptr;
     logic [$clog2(`AL_SIZE)-1:0] oldest_branch_al_addr;
+    logic no_checkpoints;
     assign ext_stall_dec = int_stall_ren;
     assign ext_stall_fetch = int_stall_ren;
     
     
     logic [$clog2(`AL_SIZE)-1:0] new_front, old_front, back;
     logic if_recall;
-    assign if_recall = 0;
-    assign new_front = 0;
-    assign old_front = 0;
-    assign back = 0;
+    assign if_recall = branch_fb[0].if_branch && ~branch_fb[0].if_prediction_correct;
+    assign new_front = branch_fb[0].al_addr;
+    assign old_front = al_front_ptr;
+    assign back = al_back_ptr;
 
     
     //issue ifcs and vars
@@ -187,9 +190,10 @@ module top(
         .ext_flush(ext_flush_ren),
         .i_decode(dec_out),
         .i_branch_fb(branch_fb),
-        .i_wb(wb_s2),
+        .i_wb(wb),
         .o_renamed(ren_out),
         .oldest_branch_al_addr,
+        .no_checkpoints,
         .int_stall(int_stall_ren),
         .al_front_ptr_reg(al_front_ptr),
         .al_back_ptr_reg(al_back_ptr)
@@ -204,18 +208,19 @@ module top(
         .new_front,
         .old_front,
         .back,
-        .i_wb(wb_s2),
+        .i_wb(wb),
         //.bbt,
         .o_iq(aiq_issue_out),
         .o_miq(miq_issue_out),
         .oldest_branch_al_addr,
+        .no_checkpoints,
         .int_stall(ext_stall_ren)
     );
 
     fast_reg_file FRF(
         .clk, .f_clk, .reset, .ext_stall(1'b0),
         .if_recall, .new_front, .old_front, .back,
-        .i_wb(wb_s1),
+        .i_wb(wb),
         .i_aiq(aiq_issue_out),
         .i_miq(miq_issue_out),
         .o_regs(reg_out),
@@ -240,12 +245,12 @@ module top(
         .o_wb(mem_wb)
     );
     
-    write_back_stage WRITE_BACK_STAGE(
+    /*write_back_stage WRITE_BACK_STAGE(
         .clk, .if_recall, .new_front, .old_front, .back,
         .i_wb(wb),
         .o_wb_s1(wb_s1),
         .o_wb_s2(wb_s2)
-    );
+    );*/
     
     always_comb begin
         case(switches) 

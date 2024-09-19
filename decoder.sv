@@ -25,10 +25,10 @@ module decoder(
     assign funct7 = i_instr[31:25];
 
     task r_type(input [31:0] instr);
-        o_dec.valid = 1;
         o_dec.rs2 = instr[24:20];
         o_dec.rs1 = instr[19:15];
         o_dec.rd = instr[11:7];
+        o_dec.valid = 1;
     endtask 
     
     task i_type(input [31:0] instr);
@@ -196,12 +196,12 @@ module decoder(
         o_dec.rl = i_instr[25];
         if(funct3 == 3'b010) begin
             o_dec.amo_type = AMO_LR;
-            o_dec.uses_rd = 1;
+            o_dec.uses_rd = (o_dec.rd != 0);
             o_dec.uses_rs1 = 1;
             o_dec.width = M_W;
         end else if(funct3 == 3'b011) begin
             o_dec.amo_type = AMO_SC;
-            o_dec.uses_rd = 1;
+            o_dec.uses_rd = (o_dec.rd != 0);
             o_dec.uses_rs1 = 1;
             o_dec.uses_rs2 = 1;
             o_dec.width = M_D;
@@ -248,13 +248,13 @@ module decoder(
                 7'b0010011: begin //op imm
                     i_type(.instr(i_instr));
                     arithmetic_i_type(.funct3(funct3));
-                    o_dec.uses_rd = 1;
+                    o_dec.uses_rd = (o_dec.rd != 0);
                     o_dec.uses_rs1 = 1;
                     o_dec.uses_imm = 1;
                 end
                 7'b0110111: begin //lui
                     u_type(.instr(i_instr));
-                    o_dec.uses_rd = 1;
+                    o_dec.uses_rd = (o_dec.rd != 0);
                     o_dec.uses_rs1 = 1;
                     o_dec.rs1 = 0;
                     o_dec.uses_imm = 1;
@@ -265,11 +265,12 @@ module decoder(
                     o_dec.uses_imm = 1;
                     o_dec.uses_rs1 = 1;
                     o_dec.rs1 = 0;
+                    //o_dec.uses_rd = (o_dec.rd != 0);
                 end
                 7'b0110011: begin //op
                     r_type(.instr(i_instr));
                     arithmetic_r_type(.funct7(funct7), .funct3(funct3));
-                    o_dec.uses_rd = 1;
+                    o_dec.uses_rd = (o_dec.rd != 0);
                     o_dec.uses_rs1 = 1;
                     o_dec.uses_rs2 = 1;
                 end
@@ -278,7 +279,7 @@ module decoder(
                     o_dec.is_jump = 1;
                     o_dec.target = i_pc + {{11{i_instr[31]}}, i_instr[31], i_instr[19:12], i_instr[20], i_instr[30:21], 1'b0};
                     o_dec.imm = i_pc + 'd4;
-                    o_dec.uses_rd = 1;
+                    o_dec.uses_rd = (o_dec.rd != 0);
                     o_dec.uses_rs1 = 1;
                     o_dec.rs1 = 0;
                     o_dec.uses_imm = 1;
@@ -287,10 +288,11 @@ module decoder(
                 end
                 7'b1100111: begin //jalr
                     i_type(.instr(i_instr));
+                    o_dec.is_branch = 1;
                     o_dec.is_jump = 1;
                     o_dec.is_jump_register = 1;
                     o_dec.target = i_pc + 'd4;
-                    o_dec.uses_rd = 1;
+                    o_dec.uses_rd = (o_dec.rd != 0);
                     o_dec.uses_rs1 = 1;
                     o_dec.uses_imm = 1;
                     o_branch_inconsistency = 0;
@@ -310,7 +312,7 @@ module decoder(
                     i_type(.instr(i_instr));
                     memory_type(.funct3(funct3), .opcode(opcode));
                     o_dec.uses_rs1 = 1;
-                    o_dec.uses_rd = 1;
+                    o_dec.uses_rd = (o_dec.rd != 0);
                     o_dec.uses_imm = 1;
                     o_dec.is_mem_access = 1;
                     o_dec.alu_operation = ALUCTL_ADD;
@@ -321,6 +323,7 @@ module decoder(
                     o_dec.uses_rs1 = 1;
                     o_dec.uses_rs2 = 1;
                     o_dec.uses_imm = 1;
+                    o_dec.uses_rd = 0;
                     o_dec.is_mem_access = 1;
                     o_dec.mem_access_type = WRITE;
                     o_dec.alu_operation = ALUCTL_ADD;
@@ -339,7 +342,7 @@ module decoder(
                         end
                     end else begin
                         csr_type(.funct3(funct3));
-                        o_dec.uses_rd = 1;
+                        o_dec.uses_rd = (o_dec.rd != 0);
                     end
                 end
                 7'b0101111: begin //AMO

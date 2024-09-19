@@ -34,11 +34,13 @@ interface branch_fb_ifc();
     logic if_prediction_correct;
     riscv_pkg::BranchOutcome outcome;
     logic [$clog2(`NUM_CHECKPOINTS)-1:0] cp_addr;
+    logic [$clog2(`AL_SIZE)-1:0] al_addr;
     logic [`ADDR_WIDTH-1:0] branch_pc;
     logic [`ADDR_WIDTH-1:0] new_pc;
+    logic is_jr;
     
-    modport in(input if_branch, if_prediction_correct, outcome, cp_addr, branch_pc, new_pc);
-    modport out(output if_branch, if_prediction_correct, outcome, cp_addr, branch_pc, new_pc);
+    modport in(input if_branch, if_prediction_correct, outcome, cp_addr, al_addr, branch_pc, new_pc, is_jr);
+    modport out(output if_branch, if_prediction_correct, outcome, cp_addr, al_addr, branch_pc, new_pc, is_jr);
     
 endinterface
 

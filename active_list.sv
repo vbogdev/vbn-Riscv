@@ -45,6 +45,23 @@ module active_list(
     logic [5:0] arch_reg [`AL_SIZE];
     logic [`ADDR_WIDTH-1:0] pcs [`AL_SIZE];
     
+    logic [$clog2(`AL_SIZE)-1:0] list_idxs [`AL_SIZE];
+    logic [`AL_SIZE-1:0] flush_mask;
+    logic [`AL_SIZE-1:0] i_valid;
+    genvar l;
+    generate
+        for(l = 0; l < `AL_SIZE; l++) begin
+            assign list_idxs[l] = l;
+            assign i_valid[l] = al_done[l];
+        end
+    endgenerate
+    
+    ucm_in_order UCM(
+        .new_front, .old_front(al_front), .back(al_back),
+        .i_valid(i_valid),
+        .flush_mask(flush_mask)
+    );
+    
     genvar k;
     generate
         for(k = 0; k < 4; k++) begin
@@ -77,7 +94,7 @@ module active_list(
         end
     end
     
-    assign free_phys_reg_valid = al_done[al_back] && al_entry[al_back][11];
+    assign free_phys_reg_valid = al_done[al_back+1] && al_entry[al_back+1][11];
     assign free_phys_reg = al_entry[al_back][$clog2(`NUM_PR)-1:0];
     
     always_ff @(posedge clk) begin
@@ -99,9 +116,15 @@ module active_list(
             if(recall_checkpoint) begin
                 al_front <= new_front;
                 al_size <= (new_front > al_back) ? (new_front - al_back) : (new_front - al_back + `AL_SIZE);
-                if(al_done[al_back]) begin
+                if(al_done[al_back+1] && (new_front != (al_back+1))) begin
                     al_back <= al_back + 1;
+                end 
+                for(int i = 0; i < `AL_SIZE; i++) begin
+                    if(flush_mask[i]) begin
+                        al_done[i] <= 0;
+                    end
                 end
+                
             end else if(~stall) begin
                 //handle allocating new entries and updating the size of it
                 if(valid_instr[0] && valid_instr[1]) begin
@@ -112,7 +135,7 @@ module active_list(
                     pcs[al_front+1] <= pc[0];
                     pcs[al_front+2] <= pc[1];
                     al_front <= al_front + 2;
-                    if(al_done[al_back]) begin
+                    if(al_done[al_back+1]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size + 1;
                     end else begin
@@ -123,7 +146,7 @@ module active_list(
                     al_entry[al_front + 1] <= {arch_rd[0], phys_rd[0]};
                     al_front <= al_front + 1;
                     pcs[al_front+1] <= pc[0];
-                    if(al_done[al_back]) begin
+                    if(al_done[al_back+1]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size;
                     end else begin
@@ -134,14 +157,14 @@ module active_list(
                     al_entry[al_front + 1] <= {arch_rd[1], phys_rd[1]};
                     al_front <= al_front + 1;
                     pcs[al_front+1] <= pc[1];
-                    if(al_done[al_back]) begin
+                    if(al_done[al_back+1]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size;
                     end else begin
                         al_size <= al_size + 1;
                     end
                 end else begin
-                    if(al_done[al_back]) begin
+                    if(al_done[al_back+1]) begin
                         al_back <= al_back + 1;
                         al_size <= al_size - 1;
                     end else begin
@@ -149,7 +172,7 @@ module active_list(
                     end
                 end
             end else begin
-                if(al_done[al_back]) begin
+                if(al_done[al_back+1]) begin
                     al_back <= al_back + 1;
                     al_size <= al_size - 1;
                 end else begin

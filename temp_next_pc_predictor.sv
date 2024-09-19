@@ -16,10 +16,10 @@ module temp_next_pc_predictor(
         if(reset) begin
             next_pc[0] <= 0;
             next_pc[1] <= 'd4;
-        end else if(~i_branch[0].if_prediction_correct) begin
+        end else if(~i_branch[0].if_prediction_correct && i_branch[0].if_branch) begin
             next_pc[0] <= i_branch[0].new_pc;
             next_pc[1] <= i_branch[0].new_pc + 'd4;
-        end else if(~i_dec.if_prediction_correct) begin
+        end else if(~i_dec.if_prediction_correct && i_dec.if_branch) begin
             next_pc[0] <= i_dec.new_pc;
             next_pc[1] <= i_dec.new_pc + 'd4;
         end else if(~ext_stall) begin

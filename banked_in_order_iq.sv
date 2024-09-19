@@ -8,6 +8,7 @@ module banked_in_order_iq(
     input if_recall,
     input [$clog2(`AL_SIZE)-1:0] new_front, old_front, back,
     input [$clog2(`AL_SIZE)-1:0] oldest_branch_al_addr,
+    input no_checkpoints,
     //free list
     wb_ifc.in i_wb [4],
     //outputs
@@ -24,6 +25,7 @@ module banked_in_order_iq(
         .i_wb,
         .back,
         .oldest_branch_al_addr,
+        .no_branches(no_checkpoints),
         .o_miq(o_miq[0]),
         .int_stall(int_stall_b0)
     );
@@ -37,6 +39,7 @@ module banked_in_order_iq(
         .i_wb,
         .back,
         .oldest_branch_al_addr,
+        .no_branches(no_checkpoints),
         .o_miq(o_miq[1]),
         .int_stall(int_stall_b1)
     );

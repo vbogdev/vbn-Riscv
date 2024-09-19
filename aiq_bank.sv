@@ -102,8 +102,8 @@ module aiq_bank #(
     logic is_arith, we;
     assign is_arith = i_ren.valid && ~i_ren.is_mem_access && ~i_ren.is_fp && ~i_ren.accesses_csr;
     assign int_stall = (is_arith && ~first_empty_valid) || ext_stall;
-    assign we = ~int_stall && is_arith && ~ext_stall && (first_ready_valid || (~first_ready_valid && first_empty_valid)
-         || ~full) && if_recall;
+    assign we = ~int_stall && is_arith && ~ext_stall && (first_ready_valid || (~first_ready_valid && first_empty_valid && ~full)) 
+        && ~if_recall;
     
     
     localparam payload_width = `ADDR_WIDTH + 1 + 1 + $clog2(`NUM_PR) + 32 + 5 + `ADDR_WIDTH + 1 + 1 + 1 + 3 + 1 + `ADDR_WIDTH;
@@ -140,7 +140,27 @@ module aiq_bank #(
     
     
     always_ff @(posedge clk) begin
-        if(~ext_stall) begin
+        if(reset || ~first_ready_valid) begin
+            o_iq.valid <= 0;
+            o_iq.uses_rs1 <= 0;
+            o_iq.uses_rs2 <= 0;
+            o_iq.rs1 <= 0;
+            o_iq.rs2 <= 0;
+            o_iq.al_addr <= 0;
+            o_iq.uses_rd <= 0;
+            o_iq.rd <= 0;
+            o_iq.uses_imm <= 0;
+            o_iq.imm <= 0;
+            o_iq.alu_operation <= ALUCTL_ADD;
+            o_iq.target <= 0;
+            o_iq.is_branch <= 0;
+            o_iq.is_jump <= 0;
+            o_iq.is_jump_register <= 0;
+            o_iq.branch_op <= 0;
+            o_iq.prediction <= 0;
+            o_iq.cp_addr <= 0;
+            o_iq.pc <= 0;
+        end else if(~ext_stall) begin
             o_iq.valid <= valid[addr] && ((~flush_mask[addr] && if_recall) || ~if_recall) && first_ready_valid;
             o_iq.uses_rs1 <= uses_rs1[addr];
             o_iq.uses_rs2 <= uses_rs2[addr];
