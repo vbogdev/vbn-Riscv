@@ -10,26 +10,26 @@ module temp_next_pc_predictor(
     output logic guesses_branch [2]
     );
     
-    logic [`ADDR_WIDTH-1:0] next_pc [2];
+    //logic [`ADDR_WIDTH-1:0] next_pc [2];
     
     always_ff @(posedge clk) begin
         if(reset) begin
-            next_pc[0] <= 0;
-            next_pc[1] <= 'd4;
+            guess[0] <= 0;
+            guess[1] <= 'd4;
         end else if(~i_branch[0].if_prediction_correct && i_branch[0].if_branch) begin
-            next_pc[0] <= i_branch[0].new_pc;
-            next_pc[1] <= i_branch[0].new_pc + 'd4;
+            guess[0] <= i_branch[0].new_pc;
+            guess[1] <= i_branch[0].new_pc + 'd4;
         end else if(~i_dec.if_prediction_correct && i_dec.if_branch) begin
-            next_pc[0] <= i_dec.new_pc;
-            next_pc[1] <= i_dec.new_pc + 'd4;
+            guess[0] <= i_dec.new_pc;
+            guess[1] <= i_dec.new_pc + 'd4;
         end else if(~ext_stall) begin
-            next_pc[0] <= next_pc[0] + 'd8;
-            next_pc[1] <= next_pc[1] + 'd8;
+            guess[0] <= guess[0] + 'd8;
+            guess[1] <= guess[1] + 'd8;
         end
     end
     
-    assign guess[0] = next_pc[0];
-    assign guess[1] = next_pc[1];
+    //assign guess[0] = next_pc[0];
+    //assign guess[1] = next_pc[1];
     assign guess_valid[0] = 1;
     assign guess_valid[1] = 1;
     assign guesses_branch[0] = 0;

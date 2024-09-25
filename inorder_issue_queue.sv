@@ -500,12 +500,19 @@ module inorder_issue_queue #(
     
     genvar j;
     generate
-        //loop for incoming[0] for rs1
         for(j = 0; j < SIZE; j++) begin
             always_ff @(posedge clk) begin
                 //you dont need to check incoming_in_order[1] as this will always go at front_ptr if incoming_in_order[0] is valid
-                if(incoming_in_order[0] && (front_ptr == j)) begin
+                if((incoming_in_order[0] ^ incoming_in_order[1]) && (front_ptr == j)) begin
+                    if(incoming_in_order[0]) begin
+                        rs1_ready[j] <= i_ren[0].rs1_ready || incoming_overwrite_rs1[0];
+                    end else begin
+                        rs1_ready[j] <= i_ren[1].rs1_ready || incoming_overwrite_rs1[1];
+                    end
+                end else if((incoming_in_order[0] && incoming_in_order[1]) && (front_ptr == j)) begin
                     rs1_ready[j] <= i_ren[0].rs1_ready || incoming_overwrite_rs1[0];
+                end else if((incoming_in_order[0] && incoming_in_order[1]) && ((front_ptr + 1) == j)) begin
+                    rs1_ready[j] <= i_ren[1].rs1_ready || incoming_overwrite_rs1[1];
                 end else if(valid[j] && uses_rs1[j] && ((i_wb[0].valid && i_wb[0].uses_rd && (i_wb[0].rd == rs1[j])) || (i_wb[1].valid && i_wb[1].uses_rd 
                     && (i_wb[1].rd == rs1[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs1[j])) || (i_wb[3].valid && i_wb[3].uses_rd && 
                     (i_wb[3].rd == rs1[j])))) begin //snoop the wb interface to check if the reg is ready
@@ -515,47 +522,22 @@ module inorder_issue_queue #(
             end
         end
         
-        //loop for incoming[0] for rs2
         for(j = 0; j < SIZE; j++) begin
             always_ff @(posedge clk) begin
-                if(incoming_in_order[0] && (front_ptr == j)) begin
+                //you dont need to check incoming_in_order[1] as this will always go at front_ptr if incoming_in_order[0] is valid
+                if((incoming_in_order[0] ^ incoming_in_order[1]) && (front_ptr == j)) begin
+                    if(incoming_in_order[0]) begin
+                        rs2_ready[j] <= i_ren[0].rs2_ready || incoming_overwrite_rs2[0];
+                    end else begin
+                        rs2_ready[j] <= i_ren[1].rs2_ready || incoming_overwrite_rs2[1];
+                    end
+                end else if((incoming_in_order[0] && incoming_in_order[1]) && (front_ptr == j)) begin
                     rs2_ready[j] <= i_ren[0].rs2_ready || incoming_overwrite_rs2[0];
-                end else if(valid[j] && uses_rs2[j] && ((i_wb[0].valid && i_wb[0].uses_rd && (i_wb[0].rd == rs2[j])) || (i_wb[1].valid && i_wb[1].uses_rd 
-                    && (i_wb[1].rd == rs2[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs2[j])) ||  (i_wb[3].valid && i_wb[3].uses_rd && 
-                    (i_wb[3].rd == rs2[j])))) begin
-                    
-                    rs2_ready[j] <= 1;
-                end
-            end
-        end
-        
-        //loop for incoming[1] for rs1
-        for(j = 0; j < SIZE; j++) begin
-            always_ff @(posedge clk) begin
-                //you need to check incoming_in_order[0] as incoming[1] can go at front_ptr or front_ptr + 1
-                if(incoming_in_order[0] && incoming_in_order[1] && ((front_ptr+1) == j)) begin
-                    rs1_ready[j] <= i_ren[1].rs1_ready || incoming_overwrite_rs1[1];
-                end else if(~incoming_in_order[0] && incoming_in_order[1] && (front_ptr == j)) begin
-                    rs1_ready[j] <= i_ren[1].rs1_ready || incoming_overwrite_rs1[1];
-                end else if(valid[j] && uses_rs1[j] && ((i_wb[0].valid && i_wb[0].uses_rd && (i_wb[0].rd == rs1[j])) || (i_wb[1].valid && i_wb[1].uses_rd 
-                    && (i_wb[1].rd == rs1[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs1[j])) || (i_wb[3].valid && i_wb[3].uses_rd && 
-                    (i_wb[3].rd == rs1[j])))) begin //snoop the wb interface to check if the reg is ready
-                    
-                    rs1_ready[j] <= 1;
-                end
-            end
-        end
-        
-        //loop for incoming[1] for rs2
-        for(j = 0; j < SIZE; j++) begin
-            always_ff @(posedge clk) begin
-                if(incoming_in_order[0] && incoming_in_order[1] && ((front_ptr+1) == j)) begin
-                    rs2_ready[j] <= i_ren[1].rs2_ready || incoming_overwrite_rs2[1];
-                end else if(~incoming_in_order[0] && incoming_in_order[1] && (front_ptr == j)) begin
+                end else if((incoming_in_order[0] && incoming_in_order[1]) && ((front_ptr + 1) == j)) begin
                     rs2_ready[j] <= i_ren[1].rs2_ready || incoming_overwrite_rs2[1];
                 end else if(valid[j] && uses_rs2[j] && ((i_wb[0].valid && i_wb[0].uses_rd && (i_wb[0].rd == rs2[j])) || (i_wb[1].valid && i_wb[1].uses_rd 
-                    && (i_wb[1].rd == rs2[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs2[j])) ||  (i_wb[3].valid && i_wb[3].uses_rd && 
-                    (i_wb[3].rd == rs2[j])))) begin
+                    && (i_wb[1].rd == rs2[j])) || (i_wb[2].valid && i_wb[2].uses_rd && (i_wb[2].rd == rs2[j])) || (i_wb[3].valid && i_wb[3].uses_rd && 
+                    (i_wb[3].rd == rs2[j])))) begin //snoop the wb interface to check if the reg is ready
                     
                     rs2_ready[j] <= 1;
                 end

@@ -4,7 +4,7 @@
 module top(
     input reset,
     input sys_clk_pin,
-    input sys_clk_2,
+    //input sys_clk_2,
     input [3:0] switches,
     input set,
     input [9:0] inputs,
@@ -15,16 +15,16 @@ module top(
     logic clk, f_clk;
 
     
-    /*main_clock CLK_MANAGER(
+    main_clock CLK_MANAGER(
         .s_clk(clk),
         .f_clk,
         .reset,
         .clk_in1(sys_clk_pin)
-    );*/
+    );
     
     //for testing
-    assign clk = sys_clk_2;
-    assign f_clk = sys_clk_pin;
+    //assign clk = sys_clk_2;
+    //assign f_clk = sys_clk_pin;
     
     
     //assign clk = sys_clk_pin;
@@ -72,6 +72,8 @@ module top(
     assign branch_fb[1].branch_pc = 0;
     assign branch_fb[1].new_pc = 0;
     
+    logic if_recall;
+    
     branch_fb_decode_ifc branch_fb_dec();
     logic ext_stall_fetch, ext_flush_fetch;
     assign ext_flush_fetch = if_recall;
@@ -83,6 +85,7 @@ module top(
     assign fetch_addr = direct_inputs[31:0];
     assign fetch_addr_valid = direct_inputs[32];
     assign fetched_data = direct_inputs[96:33];
+    
     
     //decode ifcs and vars
     logic ext_stall_dec, ext_flush_dec;
@@ -106,7 +109,7 @@ module top(
     
     
     logic [$clog2(`AL_SIZE)-1:0] new_front, old_front, back;
-    logic if_recall;
+
     assign if_recall = branch_fb[0].if_branch && ~branch_fb[0].if_prediction_correct;
     assign new_front = branch_fb[0].al_addr;
     assign old_front = al_front_ptr;
@@ -169,10 +172,10 @@ module top(
         .decode_fb(branch_fb_dec),
         .ext_stall(ext_stall_fetch),
         .ext_flush(ext_flush_fetch),
-        .o_instr(fetch_out),
-        .fetch_addr,
-        .fetch_addr_valid,
-        .fetched_data
+        .o_instr(fetch_out)
+        //.fetch_addr,
+        //.fetch_addr_valid,
+        //.fetched_data
     );
     
     decode_stage DECODE_STAGE(
@@ -203,7 +206,8 @@ module top(
     issue_stage ISSUE_STAGE(
         .clk, .reset,
         .ext_stall(ext_stall_reg),
-        .i_ren(ren_out),
+        .i_ren_aiq(ren_out),
+        .i_ren_ioiq(ren_out),
         .if_recall,
         .new_front,
         .old_front,
@@ -255,21 +259,21 @@ module top(
     always_comb begin
         case(switches) 
             4'b0000: r1 = wb[0].data[15:0];
-            4'b0000: r1 = wb[0].data[31:16];
-            4'b0000: r1 = wb[1].data[15:0];
-            4'b0000: r1 = wb[1].data[31:16];
-            4'b0000: r1 = wb[2].data[15:0];
-            4'b0000: r1 = wb[2].data[31:16];
-            4'b0000: r1 = wb[3].data[15:0];
-            4'b0000: r1 = wb[3].data[31:16];
-            4'b0000: r1 = wb[0].data[15:0];
-            4'b0000: r1 = wb[0].data[31:16];
-            4'b0000: r1 = wb[0].data[15:0];
-            4'b0000: r1 = wb[0].data[31:16];
-            4'b0000: r1 = wb[0].data[15:0];
-            4'b0000: r1 = wb[0].data[31:16];
-            4'b0000: r1 = wb[0].data[15:0];
-            4'b0000: r1 = wb[0].data[31:16];
+            4'b0001: r1 = wb[0].data[31:16];
+            4'b0010: r1 = wb[1].data[15:0];
+            4'b0011: r1 = wb[1].data[31:16];
+            4'b0100: r1 = wb[2].data[15:0];
+            4'b0101: r1 = wb[2].data[31:16];
+            4'b0110: r1 = wb[3].data[15:0];
+            4'b0111: r1 = wb[3].data[31:16];
+            4'b1000: r1 = wb[0].data[15:0];
+            4'b1001: r1 = wb[0].data[31:16];
+            4'b1010: r1 = wb[0].data[15:0];
+            4'b1011: r1 = wb[0].data[31:16];
+            4'b1100: r1 = wb[0].data[15:0];
+            4'b1101: r1 = wb[0].data[31:16];
+            4'b1110: r1 = wb[0].data[15:0];
+            4'b1111: r1 = wb[0].data[31:16];
         endcase
     end
     

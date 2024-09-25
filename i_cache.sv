@@ -1,244 +1,275 @@
 `timescale 1ns / 1ps
 `include "riscv_core.svh"
 
+/*
+In depth module description
+*/
 module i_cache #(
-    parameter DEPTH = 512,
-    parameter LINE_SIZE = 2
+    //parameter DEPTH = 512,
+    parameter LINE_SIZE = 2,
+    parameter DEPTH = 1024
     )(
     input clk, reset,
     input [`ADDR_WIDTH-1:0] read_addr [2],
     input read_addr_valid [2],
-    input [`ADDR_WIDTH-1:0] fetch_addr,
-    input fetch_addr_valid,
-    input [32*LINE_SIZE-1:0] fetched_data,
     input ext_stall, ext_flush,
+    input [`ADDR_WIDTH-1:0] fetch_addr,      
+    input fetch_addr_valid,
+    input [LINE_SIZE*32-1:0] fetched_data,    
+    output logic request_valid [2],
+    output logic [`ADDR_WIDTH-1:0] request_addr [2],
     output logic [31:0] read_instr [2],
     output logic valid_read [2],
-    output logic miss [2],
     output logic int_stall,
     output logic [`ADDR_WIDTH-1:0] prev_read_addr [2]
     );
     
-    localparam TAG_SIZE = `ADDR_WIDTH - 2 - $clog2(LINE_SIZE) - $clog2(DEPTH);
-    localparam TOTAL_LINE_SIZE = LINE_SIZE * 32 + TAG_SIZE + 1; //line + tag + valid bit
-    localparam IDX_SIZE = $clog2(DEPTH);
+    localparam ADDR_OFFSET = 2;
+    localparam LINE_OFFSET = $clog2(LINE_SIZE);
+    localparam INDEX_SIZE = $clog2(1024);
+    localparam TAG_SIZE = `ADDR_WIDTH - INDEX_SIZE - LINE_OFFSET - ADDR_OFFSET;
+    localparam TOTAL_LINE_BIT_WIDTH = TAG_SIZE + LINE_SIZE * 32 + 1; //note: the + 1 is for a valid bit which will be place at the end of the line
+    localparam NUM_BRAMS = TOTAL_LINE_BIT_WIDTH / 36 + 1;
+    localparam LAST_WIDTH = TOTAL_LINE_BIT_WIDTH % 36;
     
-    //pipeline registers
-    logic [`ADDR_WIDTH-1:0] already_read_addr [2];
-    logic compare_tags_s2 [2]; //register if data read from bram on miss needs to send a request
+    logic [$clog2(1024)-1:0] addr [2];
+    logic we [2];
+    logic [35:0] din [NUM_BRAMS-1][2];
+    logic [LAST_WIDTH-1:0] last_din [2];
+    logic [35:0] dout [NUM_BRAMS-1][2];
+    logic [LAST_WIDTH-1:0] last_dout [2];
     
-    //wires to connect to bram
-    logic [IDX_SIZE-1:0] access_idx [2];
-    logic [TOTAL_LINE_SIZE-1:0] access_data [2];
-    logic [TOTAL_LINE_SIZE-1:0] access_din [2];
-    logic access_we [2];
-    logic compare_tags_s1 [2]; //wire if incoming instruction will need to send request on miss
+    logic [TOTAL_LINE_BIT_WIDTH-1:0] full_din [2];
+    logic [TOTAL_LINE_BIT_WIDTH-1:0] full_dout [2];
     
-    logic [`ADDR_WIDTH-1:0] s1_pcs [2];
+    logic [`ADDR_WIDTH-1:0] already_read_addr_1 [2];
+    logic already_read_addr_1_valid [2];
+    logic [`ADDR_WIDTH-1:0] already_read_addr_2 [2];
+    logic already_read_addr_2_valid [2];
     
-    logic [1:0] num_reads, num_writes;
-    logic [2:0] num_ports_needed;
-    always_comb begin
-        num_reads = read_addr_valid[0] + read_addr_valid[1];
-        num_writes = fetch_addr_valid;
-        num_ports_needed = num_reads + num_writes;
-        if((num_ports_needed > 2) || miss[0] || miss[1]) begin
-            int_stall = 1;
-        end else begin
-            int_stall = 0;
-        end 
-    end
-     
-    
-    function [IDX_SIZE-1:0] getIdx(input [`ADDR_WIDTH-1:0] addr);
-       getIdx = addr[`ADDR_WIDTH-TAG_SIZE-1:2+$clog2(LINE_SIZE)];
-    endfunction
-    
-    function [TAG_SIZE-1:0] getTag(input [`ADDR_WIDTH-1:0] addr);
-       getTag = addr[`ADDR_WIDTH-1:`ADDR_WIDTH-TAG_SIZE];
-    endfunction
-    
-    function [$clog2(LINE_SIZE)-1:0] getOffSet(input [`ADDR_WIDTH-1:0] addr);
-        getOffSet = addr[$clog2(LINE_SIZE)-1+LINE_SIZE:LINE_SIZE];
-    endfunction
-    
-    logic fetch_forwarding_valid;
-    logic [`ADDR_WIDTH-1:0] fetch_forwarding_addr;
-    logic [LINE_SIZE*32-1:0] fetch_forwarding_line;
+    logic [TOTAL_LINE_BIT_WIDTH-1:0] read_line [2];
+    logic [TOTAL_LINE_BIT_WIDTH-1:0] read_line_backup [2];
     
     
-    always_comb begin
-        //default values for not changing the cache state
-        access_we[0] = 0;
-        access_we[1] = 0; 
-        compare_tags_s1[0] = 0;
-        compare_tags_s1[1] = 0;
-        access_din[0] = 0;
-        access_din[1] = 0;
-        s1_pcs[0] = 0;
-        s1_pcs[1] = 0;
-        access_idx[0] = 0;
-        access_idx[1] = 0;
-        
-        if(ext_stall) begin
-            
-        end else if (ext_flush) begin
-            
-        end else begin
-            //huge if statement which selects what the ports are used for
-            if(fetch_addr_valid) begin
-                
-                access_we[0] = 1;
-                access_din[0] = {1'd1, getTag(fetch_addr), fetched_data};
-                access_idx[0] = getIdx(fetch_addr);
-                s1_pcs[0] = fetch_addr;
-                
-                if(read_addr_valid[0]) begin
-                    compare_tags_s1[1] = 1;
-                    access_idx[1] = getIdx(read_addr[0]);
-                    s1_pcs[1] = read_addr[0];
-                end else if(read_addr_valid[1]) begin
-                    compare_tags_s1[1] = 1;
-                    access_idx[1] = getIdx(read_addr[1]);
-                    s1_pcs[1] = read_addr[1];
-                end else begin
-
-                end
+    genvar i;
+    generate
+        for(i = 0; i < NUM_BRAMS; i++) begin
+            if(i == (NUM_BRAMS-1)) begin
+                assign last_din[0] = full_din[0][i*36+:LAST_WIDTH];
+                assign last_din[1] = full_din[1][i*36+:LAST_WIDTH];
+                assign full_dout[0][i*36+:LAST_WIDTH] = last_dout[0];
+                assign full_dout[1][i*36+:LAST_WIDTH] = last_dout[1];
+                bram_block #(.WIDTH(LAST_WIDTH), .DEPTH(1024)) BRAM_BLOCK(
+                    .clk(clk),
+                    .addr(addr),
+                    .we(we),
+                    .din(last_din),
+                    .dout(last_dout)
+                );
             end else begin
-                if(read_addr_valid[0] && read_addr_valid[1]) begin
-                    compare_tags_s1[0] = 1;
-                    access_idx[0] = getIdx(read_addr[0]);
-                    s1_pcs[0] = read_addr[0];
-                    compare_tags_s1[1] = 1;
-                    access_idx[1] = getIdx(read_addr[1]);
-                    s1_pcs[1] = read_addr[1];
-                end else if(read_addr_valid[0] && ~read_addr_valid[1]) begin
-                    compare_tags_s1[0] = 1;
-                    access_idx[0] = getIdx(read_addr[0]);
-                    s1_pcs[0] = read_addr[0];
-                end else if(~read_addr_valid[0] && read_addr_valid[1]) begin
-                    compare_tags_s1[0] = 1;
-                    access_idx[0] = getIdx(read_addr[1]);
-                    s1_pcs[0] = read_addr[1];
-                end else begin
-                
-                end
+                assign din[i][0] = full_din[0][i*36+:36];
+                assign din[i][1] = full_din[1][i*36+:36];
+                assign full_dout[0][i*36+:36] = dout[i][0];
+                assign full_dout[1][i*36+:36] = dout[i][1];
+                bram_block #(.WIDTH(36), .DEPTH(1024)) BRAM_BLOCK(
+                    .clk(clk),
+                    .addr(addr),
+                    .we(we),
+                    .din(din[i]),
+                    .dout(dout[i])
+                );
             end
+            
         end
-    end
+    endgenerate
     
-    always_ff @(posedge clk) begin
-        if(~ext_flush && ~ext_stall) begin
-            for(int i = 0; i < 2; i++) begin
-                already_read_addr[i] <= s1_pcs[i];
-                compare_tags_s2[i] <= compare_tags_s1[i];
-            end
-        end
-        
-        fetch_forwarding_valid <= fetch_addr_valid;
-        fetch_forwarding_addr <= fetch_addr;
-        fetch_forwarding_line <= fetched_data;
-    end
-    
-    bram_block #(
-        .WIDTH(TOTAL_LINE_SIZE),
-        .DEPTH(DEPTH)
-    ) CACHE_MEM (
-        .clk, .reset,
-        .addr(access_idx),
-        .we(access_we),
-        .din(access_din),
-        .dout(access_data)
-    );
-    
-    
-    logic [TAG_SIZE-1:0] s2_tags [2];
-    logic [IDX_SIZE-1:0] s2_idxs [2];
-    logic [TAG_SIZE-1:0] data_tags [2];
-    logic [TAG_SIZE-1:0] forward_tag;
-    logic [IDX_SIZE-1:0] forward_idx;
-    
-    logic [31:0] forward_line_broken [LINE_SIZE];
-    logic [31:0] line1 [LINE_SIZE];
-    logic [31:0] line2 [LINE_SIZE];
-    always_comb begin 
-        for(int i = 0; i < LINE_SIZE; i++) begin
-            forward_line_broken[i] = fetch_forwarding_line[i * 32 +: 32];
-            line1[i] = access_data[0][i*32 +: 32];
-            line2[i] = access_data[1][i*32 +: 32];
-        end
-    end
-    
-    
-    
-     
-    always_ff @(posedge clk) begin
-        if(reset) begin
-            miss[0] <= 0;
-            read_instr[0] <= 'h23;
-            prev_read_addr[0] <= 0;
-        end else if(compare_tags_s2[0] && fetch_forwarding_valid && (forward_tag == s2_tags[0]) && (s2_idxs[0] == forward_idx)) begin
-            miss[0] <= 0;
-            read_instr[0] <= forward_line_broken[getOffSet(fetch_forwarding_addr)];
-            prev_read_addr[0] <= fetch_forwarding_addr;
-        end else if(compare_tags_s2[0] && (access_data[0][TOTAL_LINE_SIZE-1] && (data_tags[0] == s2_tags[0])) && (s2_idxs[0] == getIdx(already_read_addr[0]))) begin
-            miss[0] <= 0;
-            read_instr[0] <= line1[getOffSet(already_read_addr[0])];
-            prev_read_addr[0] <= already_read_addr[0];
-        end else if (~compare_tags_s2[0]) begin
-            miss[0] <= 0;
-            read_instr[0] <= 0;
-            prev_read_addr[0] <= 0;
+    function compare_tags(input [`ADDR_WIDTH-1:0] addr, input [TOTAL_LINE_BIT_WIDTH-1:0] line);
+        if(line[TOTAL_LINE_BIT_WIDTH-1] && (line[LINE_SIZE*32+:TAG_SIZE] == addr[ADDR_OFFSET + LINE_OFFSET + INDEX_SIZE +: TAG_SIZE])) begin
+            compare_tags = 0;
         end else begin
-            miss[0] <= 1;
-            read_instr[0] <= 0;
-            prev_read_addr[0] <= 0;
+            compare_tags = 1;
         end
-        
-        if(reset) begin
-            miss[1] <= 0;
-            read_instr[1] <= 'h23;
-            prev_read_addr[1] <= 'h23;
-        end else if(compare_tags_s2[1] && fetch_forwarding_valid && (forward_tag == s2_tags[1]) && (s2_idxs[1] == forward_idx)) begin
-            miss[1] <= 0;
-            read_instr[1] <= forward_line_broken[getOffSet(fetch_forwarding_addr)];
-            prev_read_addr[1] <= fetch_forwarding_addr;
-        end else if(compare_tags_s2[1] && (access_data[1][TOTAL_LINE_SIZE-1] && (data_tags[1] == s2_tags[1])) && (s2_idxs[1] == getIdx(already_read_addr[1]))) begin
-            miss[1] <= 0;
-            read_instr[1] <= line2[getOffSet(already_read_addr[1])];
-            prev_read_addr[1] <= already_read_addr[1];
-        end else if(~compare_tags_s2[1]) begin
-            miss[1] <= 0;
-            read_instr[1] <= 0;
-            prev_read_addr[1] <= 0;
-        end else begin
-            miss[1] <= 1;
-            read_instr[1] <= 0;
-            prev_read_addr[1] <= 0;
-        end
-    end
+    endfunction
     
+    function logic [31:0] get_instruction(input [`ADDR_WIDTH-1:0] addr, input [TOTAL_LINE_BIT_WIDTH-1:0] line);
+        get_instruction = line[32*addr[2]+:32];
+    endfunction
+    
+    function logic [TAG_SIZE-1:0] get_tag(input logic [`ADDR_WIDTH-1:0] addr);
+        get_tag = addr[LINE_OFFSET+ADDR_OFFSET+INDEX_SIZE+:TAG_SIZE];
+    endfunction    
+    
+    function logic [INDEX_SIZE-1:0] get_idx(input logic [`ADDR_WIDTH-1:0] addr);
+        get_idx = addr[LINE_OFFSET+ADDR_OFFSET+:INDEX_SIZE];
+    endfunction  
+    
+    enum logic {NO_MISS, MISS} state, next_state;
+    
+    assign int_stall = (next_state == MISS);
+    
+    logic [31:0] fetched_instr [2];
+    logic [TOTAL_LINE_BIT_WIDTH-1:0] fetched_data_line;
+    assign fetched_data_line = {1'b1, get_tag(fetch_addr), fetched_data};
+    assign fetched_instr[0] = get_instruction(already_read_addr_2[0], fetched_data_line);
+    assign fetched_instr[1] = get_instruction(already_read_addr_2[1], fetched_data_line);
+        
+    
+    //logic to compare the fetched address to the missing addresses
+    logic fetch_addr_match [2];
+    logic miss [2];
+    
+    assign fetch_addr_match[0] = (get_tag(fetch_addr) == get_tag(already_read_addr_2[0])) && (get_idx(fetch_addr) == get_idx(already_read_addr_2[0])) 
+        && fetched_data_line[TOTAL_LINE_BIT_WIDTH-1];
+    assign fetch_addr_match[1] = (get_tag(fetch_addr) == get_tag(already_read_addr_2[1])) && (get_idx(fetch_addr) == get_idx(already_read_addr_2[1])) 
+        && fetched_data_line[TOTAL_LINE_BIT_WIDTH-1];
+    
+    //handle comparing tags
+    assign miss[0] = compare_tags(already_read_addr_2[0], read_line[0]);
+    assign miss[1] = compare_tags(already_read_addr_2[1], read_line[1]);
     always_comb begin
-        forward_tag = getTag(fetch_forwarding_addr);
-        forward_idx = getIdx(fetch_forwarding_addr);
-        
-        valid_read[0] = (compare_tags_s2[0] && ~ext_flush) || reset;
+        request_valid[0] = 0;
+        request_valid[1] = 0;
+        request_addr[0] = 0;
+        request_addr[1] = 0;
     
-        s2_tags[0] = getTag(already_read_addr[0]);
-        s2_idxs[0] = getIdx(already_read_addr[0]);
-        data_tags[0] = access_data[0][TOTAL_LINE_SIZE-2:TOTAL_LINE_SIZE-1-TAG_SIZE];
-        
-        
-        valid_read[1] = (compare_tags_s2[1] && ~ext_flush) || reset;
-        s2_tags[1] = getTag(already_read_addr[1]);
-        s2_idxs[1] = getIdx(already_read_addr[1]);
-        data_tags[1] = access_data[1][TOTAL_LINE_SIZE-2:TOTAL_LINE_SIZE-1-TAG_SIZE];
-        
-        
+        if((state == NO_MISS) && ((miss[0] && already_read_addr_2_valid[0]) || (miss[1] && already_read_addr_2_valid[1])) || ext_stall) begin
+            next_state = MISS;
+            request_valid[0] = miss[0] && already_read_addr_2_valid[0];
+            request_valid[1] = miss[1] && already_read_addr_2_valid[1];
+            request_addr[0] = already_read_addr_2[0];
+            request_addr[1] = already_read_addr_2[1];
+        end else if(state == NO_MISS) begin
+            next_state = NO_MISS;
+        end else if((state == MISS) && ((miss[0] && already_read_addr_2_valid[0]) || (miss[1] && already_read_addr_2_valid[1]))) begin
+            next_state = MISS;
+        end else if((state == MISS))begin
+            next_state = NO_MISS;
+        end else begin
+            next_state = MISS;
+        end
     end
     
+    //handle inputs of cache
+    always_comb begin
+        if(state == MISS) begin
+            if(miss[0] && already_read_addr_2_valid[0] && fetch_addr_match[0] && fetch_addr_valid) begin
+                we[0] = 1;
+                addr[0] = get_idx(already_read_addr_2[0]);
+                full_din[0] = fetched_data_line;
+            end else if(next_state == NO_MISS) begin
+                we[0] = 0;
+                addr[0] = get_idx(read_addr[0]);
+                full_din[0] = 0;
+            end else begin
+                we[0] = 0;
+                addr[0] = 0;
+                full_din[0] = 0;
+            end
+            
+            if(miss[1] && already_read_addr_2_valid[1] && fetch_addr_match[1] && fetch_addr_valid) begin
+                we[1] = 1;
+                addr[1] = get_idx(already_read_addr_2[1]);
+                full_din[1] = fetched_data_line;
+            end else if(next_state == NO_MISS) begin
+                we[1] = 0;
+                addr[1] = get_idx(read_addr[1]);
+                full_din[1] = 0;
+            end else begin
+                we[1] = 0;
+                addr[1] = 0;
+                full_din[1] = 0;
+            end
+        end else begin
+            we[0] = 0;
+            we[1] = 0;
+            full_din[0] = 0;
+            full_din[1] = 0;
+            addr[0] = get_idx(read_addr[0]);
+            addr[1] = get_idx(read_addr[1]);
+        end
+    end
     
-    
-    
-    
+    always_ff @(posedge clk) begin
+        if(reset || ext_flush) begin
+            state <= NO_MISS;
+            already_read_addr_1[0] <= 0;
+            already_read_addr_1[1] <= 0;
+            already_read_addr_2[0] <= 0;
+            already_read_addr_2[1] <= 0;
+            already_read_addr_1_valid[0] <= 0;
+            already_read_addr_1_valid[1] <= 0;
+            already_read_addr_2_valid[0] <= 0;
+            already_read_addr_2_valid[1] <= 0;
+            read_line[0] <= 0;
+            read_line[1] <= 0;
+            valid_read[0] <= 0;
+            valid_read[1] <= 0;
+            read_instr[0] <= 0;
+            read_instr[1] <= 0;
+            prev_read_addr[0] <= 0;
+            prev_read_addr[1] <= 0;
+            read_line_backup[0] <= 0;
+            read_line_backup[1] <= 0;
+        end else begin
+            state <= next_state;
+            
+            //case for operation as normal
+            if((next_state == NO_MISS) && (state == NO_MISS) && ~ext_stall) begin
+                already_read_addr_1[0] <= read_addr[0];
+                already_read_addr_1[1] <= read_addr[1];
+                already_read_addr_1_valid[0] <= read_addr_valid[0];
+                already_read_addr_1_valid[1] <= read_addr_valid[1];
+                already_read_addr_2[0] <= already_read_addr_1[0];
+                already_read_addr_2[1] <= already_read_addr_1[1];
+                already_read_addr_2_valid[0] <= already_read_addr_1_valid[0];
+                already_read_addr_2_valid[1] <= already_read_addr_1_valid[1];
+                read_line[0] <= full_dout[0];
+                read_line[1] <= full_dout[1];
+                
+                valid_read[0] <= already_read_addr_2_valid[0];
+                valid_read[1] <= already_read_addr_2_valid[1];
+                prev_read_addr[0] <= already_read_addr_2[0];
+                prev_read_addr[1] <= already_read_addr_2[1];
+                read_instr[0] <= get_instruction(already_read_addr_2[0], read_line[0]);
+                read_instr[1] <= get_instruction(already_read_addr_2[1], read_line[1]);
+            //case for when the cache does not contain the data you want
+            end else if((state == NO_MISS) && (next_state == MISS)) begin
+                //when the new line is placed into the cache, the line that has just been read will be overwritten
+                //therefore you need to back it up temporarily
+                read_line_backup[0] <= full_dout[0];
+                read_line_backup[1] <= full_dout[1];
+                valid_read[0] <= 0;
+                valid_read[1] <= 0;
+                
+            //case for when you recieve the cache line you have  been waiting for
+            end else if((state == MISS) && (next_state == NO_MISS) && ~ext_stall) begin
+                read_line[0] <= read_line_backup[0];
+                read_line[1] <= read_line_backup[1];
+                valid_read[0] <= already_read_addr_2_valid[0];
+                valid_read[1] <= already_read_addr_2_valid[1];
+                prev_read_addr[0] <= already_read_addr_2[0];
+                prev_read_addr[1] <= already_read_addr_2[1];
+                read_instr[0] <= get_instruction(already_read_addr_2[0], read_line[0]);
+                read_instr[1] <= get_instruction(already_read_addr_2[1], read_line[1]);
+                
+                already_read_addr_1[0] <= read_addr[0];
+                already_read_addr_1[1] <= read_addr[1];
+                already_read_addr_1_valid[0] <= read_addr_valid[0];
+                already_read_addr_1_valid[1] <= read_addr_valid[1];
+                already_read_addr_2[0] <= already_read_addr_1[0];
+                already_read_addr_2[1] <= already_read_addr_1[1];
+                already_read_addr_2_valid[0] <= already_read_addr_1_valid[0];
+                already_read_addr_2_valid[1] <= already_read_addr_1_valid[1];
+            //stalled due to waiting for miss
+            end else if((state == MISS) && (next_state == MISS)) begin
+                if(miss[0] && fetch_addr_valid && fetch_addr_match[0]) begin
+                    read_line[0] <= fetched_data_line;
+                end
+                if(miss[1] && fetch_addr_valid && fetch_addr_match[1]) begin
+                    read_line[1] <= fetched_data_line;
+                end
+
+            end
+        end
+    end
 endmodule

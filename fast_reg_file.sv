@@ -63,7 +63,6 @@ module fast_reg_file(
         for(i = 0; i < 4; i++) begin : gen_banks
              bram_block #(.WIDTH(32), .DEPTH(`NUM_PR)) BRAM_BLOCK(
                 .clk(f_clk),
-                .reset,
                 .addr(addr[i]),
                 .we(we[i]),
                 .din(din[i]),

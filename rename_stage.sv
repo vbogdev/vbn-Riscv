@@ -272,6 +272,8 @@ module rename_stage(
     
     logic [$clog2(`NUM_PR)-1:0] allocated_regs_reordered [2];
     always_comb begin
+        allocated_regs_reordered[0] = 0;
+        allocated_regs_reordered[1] = 0;
         if(i_decode[0].uses_rd && i_decode[1].uses_rd) begin
             allocated_regs_reordered[0] = allocated_regs[0];
             allocated_regs_reordered[1] = allocated_regs[1];

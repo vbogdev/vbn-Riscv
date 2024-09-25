@@ -49,7 +49,7 @@ module next_pc_predictor(
     logic guess_valid_btb [2];
     logic btb_stall;
     logic tag_match [2];
-    branch_target_buffer BTB(
+    /*branch_target_buffer BTB(
         .clk, .reset,
         .i_fb(i_branch),
         .read_addr,
@@ -58,18 +58,18 @@ module next_pc_predictor(
         .guess_valid(guess_valid_btb),
         .int_stall(btb_stall),
         .tag_match
-    );
+    );*/
     
     riscv_pkg::BranchOutcome prediction [2];
     logic pred_stall;
-    gshare PREDICTOR(
+    /*gshare PREDICTOR(
         .clk, .reset,
         .i_fb(i_branch),
         .pred_addr(read_addr),
         .pred_addr_valid(read_addr_valid),
         .prediction,
         .int_stall(pred_stall)
-    );
+    );*/
     
     logic [`ADDR_WIDTH-1:0] final_pred_addr [2];
     always_comb begin

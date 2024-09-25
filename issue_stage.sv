@@ -4,7 +4,8 @@ module issue_stage(
     input clk, reset,
     input ext_stall,
     //incoming instr
-    rename_out_ifc i_ren [2],
+    rename_out_ifc.in_aiq i_ren_aiq [2],
+    rename_out_ifc.in_ioiq i_ren_ioiq [2],
     //wb
     wb_ifc.in i_wb [4],
     //recall
@@ -23,7 +24,7 @@ module issue_stage(
     banked_aiq AIQ(
         .clk, .reset,
         .ext_stall,
-        .i_ren,
+        .i_ren(i_ren_aiq),
         .if_recall,
         .new_front,
         .old_front,
@@ -37,7 +38,7 @@ module issue_stage(
     inorder_issue_queue IOIQ(
         .clk, .reset,
         .ext_stall,
-        .i_ren,
+        .i_ren(i_ren_ioiq),
         .i_wb,
         .if_recall,
         .new_front,
