@@ -1,13 +1,16 @@
 Work in progress github repo for my project.\
-Goal is to nearly match the [rsd processor](https://github.com/rsd-devel/rsd) in frequency and area while also implementing speculative execution. /
+Goal is to nearly match the [rsd processor](https://github.com/rsd-devel/rsd) in frequency and area while also implementing speculative execution (I know this goal is pretty unrealistic, but I will try to get as close as possible to it).\
 Designed for Arty s25 dev board for 80 MHz clock, must be under 14k LUTs, preferably under 7k to avoid needing custom DDR3L interface, currently around 5k LUTs (prefetcher, branch predictor, and caches are currently being reworked, simulation uses simple model for each of these to allow for simulations).
 Most interesting aspects of this project at the moment in my opinion is the register file, the issue queues, and the renaming stage, in this order.
+MMU, sram, and flash memory interfaces are currently being worked on. \
+PC predictor is also unfinished. Processor can run bare metal code. \
+Simulation tools will be placed in a seperate repo which will be linked here. 
 
 Stages:
   1. Fetch 1: predict new pc (currently being reworked)
-  2. Fetch 2: access i-cache (currently being reworked)
+  2. Fetch 2: access i-cache 
   3. Fetch 3: capture i-cache data
-  4. Fetch 4: i-cache tag comparison (currently being reworked)
+  4. Fetch 4: i-cache tag comparison
   5. Decode
   6. Rename
   7. Issue (currently 2 stages, will be shortened to 1 stage)
