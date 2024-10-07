@@ -1,20 +1,20 @@
-Temporary github repo for project.
-Goal is to beat the rsd processor in area
-Maybe also in power and frequency, definitely not in speed
+Work in progress github repo for my project.\
+Goal is to nearly match the [rsd processor](https://github.com/rsd-devel/rsd) in frequency and area while also implementing speculative execution. /
 Designed for Arty s25 dev board for 80 MHz clock, must be under 14k LUTs, preferably under 7k to avoid needing custom DDR3L interface, currently around 5k LUTs (prefetcher, branch predictor, and caches are currently being reworked, simulation uses simple model for each of these to allow for simulations).
 Most interesting aspects of this project at the moment in my opinion is the register file, the issue queues, and the renaming stage, in this order.
 
 Stages:
   1. Fetch 1: predict new pc (currently being reworked)
   2. Fetch 2: access i-cache (currently being reworked)
-  3. Fetch 3: i-cache tag comparison (currently being reworked)
-  4. Decode
-  5. Rename
-  6. Issue
-  7. Register read
-  8. Execute (might be multiple ex stages)
-  9. Mem access (if applicable, might be more mem stages)
-  10. Write back (possibly 2 write back stages)
+  3. Fetch 3: capture i-cache data
+  4. Fetch 4: i-cache tag comparison (currently being reworked)
+  5. Decode
+  6. Rename
+  7. Issue (currently 2 stages, will be shortened to 1 stage)
+  8. Register read
+  9. Execute (might be multiple ex stages)
+  10. Mem access (if applicable, might be more mem stages)
+  11. Write back (possibly 2 write back stages)
 
 
 Design:
