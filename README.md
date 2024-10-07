@@ -1,4 +1,4 @@
-Work in progress github repo for my project.\
+Work in progress github repo for my project. As I am wrapping up the RTL design, I am starting to tidy up this repo, but it may still take a week or 2 for the repo and the code to be easily readable. \
 Goal is to nearly match the [rsd processor](https://github.com/rsd-devel/rsd) in frequency and area while also implementing speculative execution (I know this goal is pretty unrealistic, but I will try to get as close as possible to it).\
 Designed for Arty s25 dev board for 80 MHz clock, must be under 14k LUTs, preferably under 7k to avoid needing custom DDR3L interface, currently around 5k LUTs (prefetcher, branch predictor, and caches are currently being reworked, simulation uses simple model for each of these to allow for simulations).
 Most interesting aspects of this project at the moment in my opinion is the register file, the issue queues, and the renaming stage, in this order.
